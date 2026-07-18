@@ -21,9 +21,10 @@ services:
     restart: unless-stopped
     ports:
       - "4000:4000"
+      - "5555:5555"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app?schema=public
-      PORT: 4000
+      BACKEND_PORT: 4000
     volumes:
       - ./backend:/app
       - /app/node_modules
