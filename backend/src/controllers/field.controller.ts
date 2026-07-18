@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import * as fieldService from "../services/field.service.js";
-import type { CreateUpdateFieldRequest, DeleteFieldRequest } from "../requests/field.request.js";
+import type { CreateFieldRequest, UpdateFieldRequest } from "../requests/field.request.js";
 
 // GET ALL FIELDS
 export const getAllFields = async (_req: Request, res: Response) => {
@@ -62,7 +62,7 @@ export const getFieldById = async (req: Request<{ id: string }>, res: Response) 
 };
 
 // CREATE FIELD
-export const createField = async (req: CreateUpdateFieldRequest, res: Response) => {
+export const createField = async (req: CreateFieldRequest, res: Response) => {
   try {
     const newField = await fieldService.addField(req.body);
 
@@ -106,7 +106,7 @@ export const createField = async (req: CreateUpdateFieldRequest, res: Response) 
 };
 
 // UPDATE FIELD
-export const updateField = async (req: CreateUpdateFieldRequest, res: Response) => {
+export const updateField = async (req: UpdateFieldRequest, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -153,7 +153,7 @@ export const updateField = async (req: CreateUpdateFieldRequest, res: Response) 
 };
 
 // DELETE FIELD
-export const deleteField = async (req: DeleteFieldRequest, res: Response) => {
+export const deleteField = async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
     

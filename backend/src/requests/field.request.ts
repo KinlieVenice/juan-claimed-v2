@@ -19,9 +19,10 @@ export const createUpdateFieldSchema = z.object({
 
 export type CreateUpdateFieldDto = z.infer<typeof createUpdateFieldSchema>;
 
+
+
 // Attach that structure directly to the Express Request
 // Request(ReqParams, ResBody, ReqBody, ReqQuery) = < {}, {}, {}, {} >
 
-export type CreateUpdateFieldRequest = Request<{ id: string }, {}, CreateUpdateFieldDto>;
-
-export type DeleteFieldRequest = Request<{ id: string }>;
+export type CreateFieldRequest = Request<{}, {}, CreateUpdateFieldDto>;
+export type UpdateFieldRequest = Request<{ id: string }, {}, CreateUpdateFieldDto>;
