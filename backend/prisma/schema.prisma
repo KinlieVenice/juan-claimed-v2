@@ -1,0 +1,703 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// Im making a no code dynamic benefit finder. these comments are for claude to understand my whole project down to the schema
+
+// Project: Juan-Claimed. No code benefits finder. Agents create the benefits and Users answers the questions/fields agents set
+
+// THIS WHOLE STORY COMMENTS ARE FOR BENEFITS PART ONLY. FIELD AND HIERARCHY TABLES ARE FOR ANOTHER PLAN. FOR NOW I WILL ONLY EXPLAIN BENEFITS, USERS, SCOPES AND GROUPS.
+
+// user table for authentication and authorization. this is the main user table that will be used for authentication and authorization. this is gmail sign up. it will be used to store the user information and the user role. the user role will be used to determine the access level of the user. the user role can be SUPERADMIN, AGENT, or USER. SUPERADMIN can do everything, AGENT can only create benefits and fields, and USER can only view benefits and submit applications.
+
+// 2 are referenced in user, scopeId and groupId. scope is from the dim scope and is required when user role is AGENT and inside scope table theres: national, region, province, district, city, and barangay
+
+// to get whats inside a specific location, we use api https://psgc.gitlab.io/api/. 
+
+// sample api json is:
+// /regions/
+// [
+//   {
+//     "code": "130000000",
+//     "name": "NCR",
+//     "regionName": "National Capital Region",
+//     "islandGroupCode": "luzon"
+//   }
+// ]
+
+// we use scope as basis as well to know what api to call if province /province and psgcCode = code.
+
+// Going back.
+
+// AGENTS are the ones who will create benefits. they can only create benefits within their scope. for example, if an agent has a scope of province and a psgcCode of 34324898 which is Cavite, then they can only create benefits for that province only or selected cities/barangay etc thats within Cavite. 1 agent can only have 1 psgc code. 
+
+// Then again, if scope for agent is national, then they can create benefits for all regions, provinces, cities, and barangays. but they have null as psgcCode. This is where group comes in
+
+// National scope agents are often for gov departments or agencies that have benefits for all regions, provinces, cities, and barangays. so they can create benefits for all regions, provinces, cities, and barangays or just select a few. so we use group to group benefits together for natioanl. for example, if a national scope agent has a group of "Department of Health", then they can create benefits for all regions, provinces, cities, and barangays or just select a few. and all benefits created by that agent will be grouped under "Department of Health".
+
+model DimUser {
+  id         String   @id @default(uuid())
+  username   String   @unique @db.VarChar(255)
+  email      String   @unique @db.VarChar(255)
+  firstName  String   @db.VarChar(255)
+  middleName String?  @db.VarChar(255)
+  lastName   String   @db.VarChar(255)
+  passHash   String?  @db.VarChar(255)
+  role       UserRole @default(USER)
+
+  psgcCode String? @db.VarChar(255)
+
+  scopeId String?
+  scope   DimScope? @relation(fields: [scopeId], references: [id])
+
+  groupId String?   @db.VarChar(255)
+  group   DimGroup? @relation(fields: [groupId], references: [id])
+
+  googleId  String? @db.VarChar(255)
+  avatarUrl String?
+  active    Boolean @default(true)
+
+  userFieldAnswers FctUserFieldAnswer[]
+
+  benefitsCreators               FctBenefit[]                @relation("BenefitCreatedBy")
+  benefitsUpdators               FctBenefit[]                @relation("BenefitUpdatedBy")
+  requirementsCreators           FctBenefitRequirement[]     @relation("RequirementCreatedBy")
+  requirementsUpdators           FctBenefitRequirement[]     @relation("RequirementUpdatedBy")
+  utilizationsCreators           FctBenefitUtilization[]     @relation("UtilizationCreatedBy")
+  utilizationsUpdators           FctBenefitUtilization[]     @relation("UtilizationUpdatedBy")
+  attachmentsCreators            FctAttachment[]             @relation("AttachmentCreatedBy")
+  attachmentsUpdators            FctAttachment[]             @relation("AttachmentUpdatedBy")
+  scopesCreators                 DimScope[]                  @relation("ScopeCreatedBy")
+  scopesUpdators                 DimScope[]                  @relation("ScopeUpdatedBy")
+  groupsCreators                 DimGroup[]                  @relation("GroupCreatedBy")
+  groupsUpdators                 DimGroup[]                  @relation("GroupUpdatedBy")
+  fieldsCreators                 DimField[]                  @relation("FieldCreatedBy")
+  fieldsUpdators                 DimField[]                  @relation("FieldUpdatedBy")
+  inputTypesCreators             DimFieldInputType[]         @relation("InputTypeCreatedBy")
+  inputTypesUpdators             DimFieldInputType[]         @relation("InputTypeUpdatedBy")
+  fieldOptionsCreators           DimFieldOption[]            @relation("FieldOptionCreatedBy")
+  fieldOptionsUpdators           DimFieldOption[]            @relation("FieldOptionUpdatedBy")
+  hierarchiesCreators            DimFieldHierarchy[]         @relation("HierarchyCreatedBy")
+  hierarchiesUpdators            DimFieldHierarchy[]         @relation("HierarchyUpdatedBy")
+  hierarchyLevelsCreators        DimFieldHierarchyLevel[]    @relation("HierarchyLevelCreatedBy")
+  hierarchyLevelsUpdators        DimFieldHierarchyLevel[]    @relation("HierarchyLevelUpdatedBy")
+  hierarchyNodesCreators         DimFieldHierarchyNode[]     @relation("HierarchyNodeCreatedBy")
+  hierarchyNodesUpdators         DimFieldHierarchyNode[]     @relation("HierarchyNodeUpdatedBy")
+  conditionOperatorsCreators     DimFieldConditionOperator[] @relation("ConditionOperatorCreatedBy")
+  conditionOperatorsUpdators     DimFieldConditionOperator[] @relation("ConditionOperatorUpdatedBy")
+  benefitFieldConditionsCreators DimBenefitFieldCondition[]  @relation("BenefitFieldConditionCreatedBy")
+  benefitFieldConditionsUpdators DimBenefitFieldCondition[]  @relation("BenefitFieldConditionUpdatedBy")
+  userFieldAnswersCreators       FctUserFieldAnswer[]        @relation("UserFieldAnswerCreatedBy")
+  userFieldAnswersUpdators       FctUserFieldAnswer[]        @relation("UserFieldAnswerUpdatedBy")
+  dynamicFieldConditionsCreators FctDynamicFieldCondition[]  @relation("DynamicFieldConditionCreatedBy")
+  dynamicFieldConditionsUpdators FctDynamicFieldCondition[]  @relation("DynamicFieldConditionUpdatedBy")
+  benefitPsgcCodesCreators       DimBenefitPsgcCode[]        @relation("BenefitPsgcCreatedBy")
+  benefitPsgcCodesUpdators       DimBenefitPsgcCode[]        @relation("BenefitPsgcUpdatedBy")
+  benefitGroupCreators           DimBenefitGroup[]           @relation("BenefitGroupCreatedBy")
+  benefitGroupUpdators           DimBenefitGroup[]           @relation("BenefitGroupUpdatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById  String?   @db.VarChar(255)
+  createdBy    DimUser?  @relation("UserCreatedBy", fields: [createdById], references: [id])
+  creatorUsers DimUser[] @relation("UserCreatedBy")
+
+  updatedById  String?   @db.VarChar(255)
+  updatedBy    DimUser?  @relation("UserUpdatedBy", fields: [updatedById], references: [id])
+  updatorUsers DimUser[] @relation("UserUpdatedBy")
+
+  deletedAt DateTime?
+
+  @@map("dim_user")
+}
+
+enum UserRole {
+  SUPERADMIN
+  AGENT
+  USER
+}
+
+// for context there are the scope:
+// 'NATIONAL',
+// 'REGION',
+// 'PROVINCE',
+// 'DISTRICT'
+// 'CITY',
+// 'MUNICIPALITY',
+// 'BARANGAY'
+
+model DimScope {
+  id    String @id @default(uuid())
+  name  String @db.VarChar(255)
+  value String @unique @db.VarChar(255)
+
+  users            DimUser[]
+  benefits         FctBenefit[]
+  benefitPsgcCodes DimBenefitPsgcCode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("ScopeCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("ScopeUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_scope")
+}
+
+model DimGroup {
+  id                 String @id @default(uuid())
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  benefitGroups DimBenefitGroup[]
+  users         DimUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("GroupCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("GroupUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_group")
+}
+
+// now moving on to the actual benefit part. A benefit can only belong to ONE group and ONE scope but can be one to many psgcCode
+
+// benefit can have many requirements, utilizations and even attachments. what i want to do is when i add requirement, i can attach attachment for that too same with utilization. benefit field conditions, we discuss that later after planning for benefits is done bec thats part of part 2 which is about fields.
+
+// going back, an agent can create a benefit and if an agent is a province scope they can either make that benefit applicable to whole province or select municipality/district/barangay etc and those will be saved in dim_benefit_psgc_code and the scope will be used to query the api like /municipalities like that so its easy to know the name of that location eligible in the benefit
+
+/**
+ * The whole flow is like this. For the setting up of benefits: Agent signs up using gmail. The superadmin assigns them a scope. Then they create a benefit, select which locations under them can be eligible, add descriptions, requirements and utilizations. Agent can also add attachments (more than one possible but not required) per requirement/utilization. Then they select fields and set logic conditions on those fields and if an ordinary user answers the form and matches all those fields required then that benefit will display to him as he is eligible for this benefit.
+ */
+
+model FctBenefit {
+  id String @id @default(uuid())
+
+  scopeId String
+  scope   DimScope @relation(fields: [scopeId], references: [id])
+
+  benefitRequirements FctBenefitRequirement[]
+  benefitUtilizations FctBenefitUtilization[]
+  benefitPsgcCodes    DimBenefitPsgcCode[]
+  benefitGroups       DimBenefitGroup[]
+  benefitRuleGroups   FctBenefitRuleGroup[]
+
+  name               String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  version Int @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("BenefitCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("BenefitUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+  @@map("fct_benefit")
+}
+
+model DimBenefitGroup {
+  id String @id @default(uuid())
+
+  benefitId String
+  benefit   FctBenefit @relation(fields: [benefitId], references: [id])
+
+  groupId String
+  group   DimGroup @relation(fields: [groupId], references: [id])
+
+  creator Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("BenefitGroupCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("BenefitGroupUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@unique([benefitId, groupId])
+  @@map("dim_benefit_group")
+}
+
+model DimBenefitPsgcCode {
+  id String @id @default(uuid())
+
+  benefitId String
+  benefit   FctBenefit @relation(fields: [benefitId], references: [id])
+
+  scopeId String
+  scope   DimScope @relation(fields: [scopeId], references: [id])
+
+  psgcCode String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("BenefitPsgcCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("BenefitPsgcUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@unique([benefitId, psgcCode])
+  @@map("dim_benefit_psgc_code")
+}
+
+model FctBenefitRequirement {
+  id String @id @default(uuid())
+
+  benefitId String
+  benefit   FctBenefit @relation(fields: [benefitId], references: [id])
+
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("RequirementCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("RequirementUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+  @@map("fct_benefit_requirement")
+}
+
+model FctBenefitUtilization {
+  id String @id @default(uuid())
+
+  benefitId String
+  benefit   FctBenefit @relation(fields: [benefitId], references: [id])
+
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("UtilizationCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("UtilizationUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+  @@map("fct_benefit_utilization")
+}
+
+model FctAttachment {
+  id String @id @default(uuid())
+
+  fileLabel  String @db.VarChar(255)
+  fileName   String @db.VarChar(255)
+  fileType   String @db.VarChar(255)
+  filePath   String @db.VarChar(255)
+  fileSize   BigInt
+  entityId   String @db.VarChar(255) //ID IN THAT TABLE
+  entityType String @db.VarChar(255) //THIS IS THE TABLE NAME
+  metaData   Json   @db.Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("AttachmentCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("AttachmentUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@index([entityType, entityId])
+  @@map("fct_benefit_attachment")
+}
+
+model DimBenefitFieldCondition {
+  id String @id @default(uuid())
+
+  benefitRuleGroupId String
+  benefitRuleGroup   FctBenefitRuleGroup @relation(fields: [benefitRuleGroupId], references: [id])
+
+  benefitFieldConditionId String
+  benefitFieldCondition   FctDynamicFieldCondition   @relation("BFC_FDC", fields: [benefitFieldConditionId], references: [id])
+  fieldConditions         FctDynamicFieldCondition[] @relation("FDC_BFC")
+
+  fieldConditionOperatorId String
+  fieldConditionOperator   DimFieldConditionOperator @relation(fields: [fieldConditionOperatorId], references: [id])
+
+  conditionFieldValue Json @db.Json
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("BenefitFieldConditionCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("BenefitFieldConditionUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt             DateTime?
+  fctDynamicRuleGroup   FctDynamicRuleGroup? @relation(fields: [fctDynamicRuleGroupId], references: [id])
+  fctDynamicRuleGroupId String?
+
+  @@map("benefit_field_condition")
+}
+
+model FctBenefitRuleGroup {
+  id String @id @default(uuid())
+
+  benefitId         String
+  benefit           FctBenefit?           @relation(fields: [benefitId], references: [id])
+  parentRuleGroupId String
+  parentRuleGroup   FctBenefitRuleGroup?  @relation("childFields", fields: [parentRuleGroupId], references: [id])
+  childFields       FctBenefitRuleGroup[] @relation("childFields")
+
+  logicalOperator       RuleLogicalOperator        @default(ALL)
+  benefitFieldCondition DimBenefitFieldCondition[]
+}
+
+enum RuleLogicalOperator {
+  ALL
+  ANY
+}
+
+model FctDynamicRuleGroup {
+  id String @id @default(uuid())
+
+  fieldId String
+  field   DimField? @relation(fields: [fieldId], references: [id])
+
+  parentRuleGroupId String
+  parentRuleGroup   FctDynamicRuleGroup?  @relation("childFields", fields: [parentRuleGroupId], references: [id])
+  childFields       FctDynamicRuleGroup[] @relation("childFields")
+
+  benefitFieldConditions DimBenefitFieldCondition[]
+  dynamicFieldConditions FctDynamicFieldCondition[]
+
+  logicalOperator RuleLogicalOperator @default(ALL)
+}
+
+model DimField {
+  id String @id @default(uuid())
+
+  key String @unique @db.VarChar(255)
+
+  parentFieldId String?
+  parentField   DimField?  @relation("childFields", fields: [parentFieldId], references: [id])
+  childFields   DimField[] @relation("childFields")
+
+  englishName String @db.VarChar(255)
+  tagalogName String @db.VarChar(255)
+  description String
+
+  fieldInputTypeId String
+  fieldInputType   DimFieldInputType @relation(fields: [fieldInputTypeId], references: [id])
+
+  fieldHierarchyId String
+  hierarchy        DimFieldHierarchy @relation(fields: [fieldHierarchyId], references: [id])
+
+  required      Boolean             @default(true)
+  sortOrder     Int                 @default(0)
+  configJson    Json?
+  classfication FieldClassification @default(FOLLOW_UP)
+  default       Boolean             @default(false)
+
+  userFieldAnswers  FctUserFieldAnswer[]
+  fieldOptions      DimFieldOption[]
+  dynamicRuleGroups FctDynamicRuleGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("FieldCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("FieldUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_field")
+}
+
+enum FieldClassification {
+  GLOBAL
+  FOLLOW_UP
+}
+
+//for context these are some of the types
+// 'TEXT',
+// 'NUMBER',
+// 'DATE',
+// 'BOOLEAN',
+// 'SINGLE_SELECT',
+// 'MULTI_SELECT',
+// 'HIERARCHICAL_SELECT'
+model DimFieldInputType {
+  id          String @id @default(uuid())
+  englishName String @db.VarChar(255)
+  tagalogName String @db.VarChar(255)
+  value       String @unique @db.VarChar(255)
+
+  fields                  DimField[]
+  fieldConditionOperators DimFieldConditionOperator[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("InputTypeCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("InputTypeUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_input_type")
+}
+
+model DimFieldOption {
+  id String @id @default(uuid())
+
+  fieldId String
+  field   DimField @relation(fields: [fieldId], references: [id])
+
+  englishName String @db.VarChar(255)
+  tagalogName String @db.VarChar(255)
+  value       String @db.VarChar(255)
+
+  englishDescription String
+  tagalogDescription String
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("FieldOptionCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("FieldOptionUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@unique([fieldId, value])
+  @@map("dim_field_option")
+}
+
+model DimFieldHierarchy {
+  id          String @id @default(uuid())
+  englishName String @db.VarChar(255)
+  tagalogName String @db.VarChar(255)
+
+  fields               DimField[]
+  fieldHierarchyLevels DimFieldHierarchyLevel[]
+  fieldHierarchyNodes  DimFieldHierarchyNode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("HierarchyCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("HierarchyUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_field_hierarchy")
+}
+
+model DimFieldHierarchyLevel {
+  id String @id @default(uuid())
+
+  fieldHierarchyId String
+  fieldHierarchy   DimFieldHierarchy @relation(fields: [fieldHierarchyId], references: [id])
+
+  level Int @default(1)
+
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("HierarchyLevelCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("HierarchyLevelUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_field_hierarchy_level")
+}
+
+model DimFieldHierarchyNode {
+  id String @id @default(uuid())
+
+  fieldHierarchyId String
+  fieldHierarchy   DimFieldHierarchy @relation(fields: [fieldHierarchyId], references: [id])
+
+  parentNodeId String?
+  parentNode   DimFieldHierarchyNode?  @relation("childNodes", fields: [parentNodeId], references: [id])
+  childNodes   DimFieldHierarchyNode[] @relation("childNodes")
+
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
+  value              String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("HierarchyNodeCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("HierarchyNodeUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@unique([fieldHierarchyId, value])
+  @@map("dim_field_hierarchy_node")
+}
+
+model DimFieldConditionOperator {
+  id          String @id @default(uuid())
+  englishName String @db.VarChar(255)
+  tagalogName String @db.VarChar(255)
+  value       String @unique @db.VarChar(255)
+
+  fieldInputTypeId String
+  fieldInputType   DimFieldInputType @relation(fields: [fieldInputTypeId], references: [id])
+
+  fieldConditions        FctDynamicFieldCondition[]
+  benefitFieldConditions DimBenefitFieldCondition[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("ConditionOperatorCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("ConditionOperatorUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("dim_field_condition_operator")
+}
+
+model FctUserFieldAnswer {
+  id String @id @default(uuid())
+
+  userId String
+  user   DimUser @relation(fields: [userId], references: [id])
+
+  fieldId String
+  field   DimField @relation(fields: [fieldId], references: [id])
+
+  field_value String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("UserFieldAnswerCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("UserFieldAnswerUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("fct_user_field_answer")
+}
+
+model FctDynamicFieldCondition {
+  id String @id @default(uuid())
+
+  dynamicRuleGroupId String
+  dynamicRuleGroup   FctDynamicRuleGroup @relation(fields: [dynamicRuleGroupId], references: [id])
+
+  fieldConditionOperatorId String
+  fieldConditionOperator   DimFieldConditionOperator @relation(fields: [fieldConditionOperatorId], references: [id])
+
+  benefitFieldConditions DimBenefitFieldCondition[] @relation("BFC_FDC")
+
+  fieldConditionId String?
+  fieldCondition   DimBenefitFieldCondition? @relation("FDC_BFC", fields: [fieldConditionId], references: [id])
+
+  conditionFieldValue Json @db.Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("DynamicFieldConditionCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("DynamicFieldConditionUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("fct_dynamic_field_condition")
+}
