@@ -1,8 +1,14 @@
 import type { Request, Response } from "express";
-import { getHealthStatus } from "../services/health.service.js";
+import { fetchAllFields } from "../services/field.service.js";
 
-export const getField = (_req: Request, res: Response) => {
-  res.json({ message: "Field retrieved successfully" });
+export const getAllFields = async (_req: Request, res: Response) => {
+  try {
+    const fields = await fetchAllFields();
+    res.status(200).json(fields);
+  } catch (error) {
+    console.error("Error fetching fields:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 };
 
 export const createField = (_req: Request, res: Response) => {

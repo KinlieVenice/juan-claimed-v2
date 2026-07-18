@@ -449,13 +449,13 @@ model DimField {
   fieldInputTypeId String
   fieldInputType   DimFieldInputType @relation(fields: [fieldInputTypeId], references: [id])
 
-  fieldHierarchyId String
-  hierarchy        DimFieldHierarchy @relation(fields: [fieldHierarchyId], references: [id])
+  fieldHierarchyId String?
+  hierarchy        DimFieldHierarchy? @relation(fields: [fieldHierarchyId], references: [id])
 
   required      Boolean             @default(true)
   sortOrder     Int                 @default(0)
   configJson    Json?
-  classfication FieldClassification @default(FOLLOW_UP)
+  classification FieldClassification @default(FOLLOW_UP)
   default       Boolean             @default(false)
 
   userFieldAnswers  FctUserFieldAnswer[]
