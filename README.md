@@ -85,44 +85,55 @@ docker compose exec backend npx prisma studio
 ```
 (opens on port 5555 — add `5555:5555` to backend's ports in docker-compose.yml if you want to reach it from host browser)
 
+## Backend is an ESM project
+
+`backend/package.json` has `"type": "module"`. This means:
+
+- Every relative import MUST end in `.js` (even though the source file is `.ts`) — e.g. `from "../utils/prisma.js"`, not `from "../utils/prisma"`. TS resolves it to the right `.ts` file at compile time; this is just Node's ESM resolution rule.
+- Type-only imports must use `import type { Foo } from "..."` (e.g. `Request`/`Response` from express) — enforced by `verbatimModuleSyntax` in `tsconfig.json`.
+- Forgetting the `.js` extension is the most common mistake here — it compiles fine but fails at runtime with `ERR_MODULE_NOT_FOUND`.
+
 ## Using Prisma in backend code
 
-Import the shared client instance from `backend/src/utils/prisma.ts` — never instantiate `new PrismaClient()` elsewhere (avoids exhausting db connections).
+Prisma Client requires a driver adapter now (Prisma 7). Import the shared client instance from `backend/src/utils/prisma.ts` — never instantiate `new PrismaClient()` elsewhere (avoids exhausting db connections).
 
 ```ts
 // backend/src/utils/prisma.ts
-import { PrismaClient } from "../generated/prisma";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "../generated/prisma/client.js";
 
-export const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+
+export const prisma = new PrismaClient({ adapter });
 ```
 
 Use it inside a service (`backend/src/services/`):
 
 ```ts
 // backend/src/services/user.service.ts
-import { prisma } from "../utils/prisma";
+import { prisma } from "../utils/prisma.js";
 
-export const listUsers = () => prisma.user.findMany();
+export const listUsers = () => prisma.dimUser.findMany();
 
-export const createUser = (email: string, name?: string) =>
-  prisma.user.create({ data: { email, name } });
+export const createUser = (email: string, username: string, firstName: string, lastName: string) =>
+  prisma.dimUser.create({ data: { email, username, firstName, lastName } });
 ```
 
 Call the service from a controller (`backend/src/controllers/`):
 
 ```ts
 // backend/src/controllers/user.controller.ts
-import { Request, Response } from "express";
-import { listUsers, createUser } from "../services/user.service";
-import { asyncHandler } from "../utils/asyncHandler";
+import type { Request, Response } from "express";
+import { listUsers, createUser } from "../services/user.service.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const getUsers = asyncHandler(async (_req: Request, res: Response) => {
   res.json(await listUsers());
 });
 
 export const postUser = asyncHandler(async (req: Request, res: Response) => {
-  const { email, name } = req.body;
-  res.status(201).json(await createUser(email, name));
+  const { email, username, firstName, lastName } = req.body;
+  res.status(201).json(await createUser(email, username, firstName, lastName));
 });
 ```
 
@@ -131,7 +142,7 @@ Wire up a route (`backend/src/routes/`), then mount it in `backend/src/index.ts`
 ```ts
 // backend/src/routes/user.routes.ts
 import { Router } from "express";
-import { getUsers, postUser } from "../controllers/user.controller";
+import { getUsers, postUser } from "../controllers/user.controller.js";
 
 export const userRouter = Router();
 userRouter.get("/", getUsers);
@@ -140,7 +151,7 @@ userRouter.post("/", postUser);
 
 ```ts
 // backend/src/index.ts
-import { userRouter } from "./routes/user.routes";
+import { userRouter } from "./routes/user.routes.js";
 app.use("/users", userRouter);
 ```
 
@@ -155,7 +166,13 @@ Folder convention:
 
 ## Environment variables
 
-`backend/.env` — copy from `backend/.env.example` if missing. When running via Docker, `docker-compose.yml` env vars override `.env` (points `DATABASE_URL` at the `postgres` service instead of `localhost`).
+`.env` is gitignored — every dev needs their own copy, it does NOT come from `git clone`.
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+When running via `docker compose`, the `DATABASE_URL`/`PORT` set in `docker-compose.yml` override `backend/.env` anyway (points at the `postgres` service instead of `localhost`) — but `backend/.env` is still required to exist for commands run outside Docker (e.g. `npx prisma studio` from your host, editor tooling) and because Prisma's config loader errors if the file is missing entirely.
 
 ## Troubleshooting
 
