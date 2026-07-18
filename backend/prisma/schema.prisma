@@ -406,6 +406,8 @@ model FctBenefitRuleGroup {
 
   logicalOperator       RuleLogicalOperator        @default(ALL)
   benefitFieldCondition DimBenefitFieldCondition[]
+
+  @@map("fct_benefit_rule_group")
 }
 
 enum RuleLogicalOperator {
@@ -427,6 +429,8 @@ model FctDynamicRuleGroup {
   dynamicFieldConditions FctDynamicFieldCondition[]
 
   logicalOperator RuleLogicalOperator @default(ALL)
+
+  @@map("fct_dynamic_rule_group")
 }
 
 model DimField {
