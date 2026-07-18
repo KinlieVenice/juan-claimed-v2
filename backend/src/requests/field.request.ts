@@ -1,7 +1,7 @@
 import type { Request } from "express";
 
 // Define what fields you expect from the user
-export interface CreateFieldDto {
+export interface CreateUpdateFieldDto {
     key: string;
     englishName: string;
     tagalogName: string;
@@ -16,5 +16,7 @@ export interface CreateFieldDto {
     fieldHierarchyId: string | null;
 }
 
+
+
 // Attach that structure directly to the Express Request
-export type CreateFieldRequest = Request<{}, {}, CreateFieldDto>;
+export type CreateUpdateFieldRequest = Request<{}, {}, CreateUpdateFieldDto>;

@@ -1,5 +1,5 @@
 import { prisma } from "../../src/utils/prisma.js"
-import type { CreateFieldDto } from "../requests/field.request.js";
+import type { CreateUpdateFieldDto } from "../requests/field.request.js";
 
 export const fetchAllFields = async () => {
   try {
@@ -16,7 +16,7 @@ export const fetchAllFields = async () => {
   }
 };
 
-export const addField = async (data: CreateFieldDto) => {
+export const addField = async (data: CreateUpdateFieldDto) => {
     const fields = await prisma.dimField.create({
         data: {
             key: data.key,

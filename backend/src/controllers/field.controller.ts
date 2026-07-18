@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { fetchAllFields } from "../services/field.service.js";
-import type { CreateFieldRequest } from "../requests/field.request.js";
+import type { CreateUpdateFieldRequest } from "../requests/field.request.js";
 
 export const getAllFields = async (_req: Request, res: Response) => {
   try {
@@ -12,11 +12,11 @@ export const getAllFields = async (_req: Request, res: Response) => {
   }
 };
 
-export const createField = (_req: CreateFieldRequest, res: Response) => {
+export const createField = (_req: CreateUpdateFieldRequest, res: Response) => {
   res.json({ message: "Field created successfully" });
 };
 
-export const updateField = (_req: Request, res: Response) => {
+export const updateField = (_req: CreateUpdateFieldRequest, res: Response) => {
   res.json({ message: "Field updated successfully" });
 };
 
