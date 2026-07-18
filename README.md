@@ -81,9 +81,10 @@ docker compose exec backend npx prisma generate
 Inspect data visually:
 
 ```bash
-docker compose exec backend npx prisma studio
+docker compose exec -d backend npx prisma studio --port 5555 --browser none
 ```
-(opens on port 5555 — add `5555:5555` to backend's ports in docker-compose.yml if you want to reach it from host browser)
+
+`-d` runs it detached so your terminal isn't blocked. `--browser none` avoids a crash (Studio tries to auto-open a browser inside the container, which doesn't exist there). Then open `http://localhost:5555` yourself — already mapped in `docker-compose.yml`.
 
 ## Backend is an ESM project
 
