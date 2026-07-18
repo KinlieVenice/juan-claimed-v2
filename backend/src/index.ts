@@ -5,7 +5,7 @@ import { healthRouter } from "./routes/health.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
-const port = process.env.PORT || 4000;
+const port = process.env.BACKEND_PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
