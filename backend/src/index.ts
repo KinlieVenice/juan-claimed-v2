@@ -4,6 +4,7 @@ import express from "express";
 import { healthRouter } from "./routes/health.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { logger } from "./utils/logger.js";
+import { fieldRouter } from "./routes/field.route.js";
 
 const app = express();
 const port = process.env.BACKEND_PORT || 4000;
@@ -17,6 +18,7 @@ app.use((req, _res, next) => {
 });
 
 app.use("/health", healthRouter);
+app.use("/field", fieldRouter);
 
 app.use(errorHandler);
 
