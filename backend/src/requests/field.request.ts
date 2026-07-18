@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import type { Prisma } from "../generated/prisma/client.js";
 
 // Define what fields you expect from the user
 export interface CreateUpdateFieldDto {
@@ -10,7 +11,7 @@ export interface CreateUpdateFieldDto {
     default: boolean;
     required: boolean;
     sortOrder: number;
-    configJson: string;
+    configJson: Prisma.InputJsonValue | null;
     fieldInputTypeId: string;
     parentFieldId: string | null;
     fieldHierarchyId: string | null;
@@ -19,4 +20,8 @@ export interface CreateUpdateFieldDto {
 
 
 // Attach that structure directly to the Express Request
-export type CreateUpdateFieldRequest = Request<{}, {}, CreateUpdateFieldDto>;
+// Request(ReqParams, ResBody, ReqBody, ReqQuery) = < {}, {}, {}, {} >
+
+export type CreateUpdateFieldRequest = Request<{ id: string }, {}, CreateUpdateFieldDto>;
+
+export type DeleteFieldRequest = Request<{ id: string }>;

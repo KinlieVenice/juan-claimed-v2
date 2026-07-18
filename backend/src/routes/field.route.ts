@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { getAllFields, createField, updateField, deleteField } from "../controllers/field.controller.js";
+import { getAllFields, getFieldById, createField, updateField, deleteField } from "../controllers/field.controller.js";
 
 export const fieldRouter = Router();
 
 fieldRouter.get("/", getAllFields);
+fieldRouter.get("/:id", getFieldById);
 fieldRouter.post("/", createField);
-fieldRouter.put("/", updateField);
-fieldRouter.delete("/", deleteField); 
+fieldRouter.put("/:id", updateField);
+fieldRouter.delete("/:id", deleteField);
 
