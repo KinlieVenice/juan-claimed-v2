@@ -45,4 +45,4 @@ Commands:
 -Migrating:                         docker compose exec backend npx prisma migrate dev --name ____
                                     docker compose exec backend npx prisma generate
                                     docker compose exec -d backend npx prisma studio --port 5555 --browser none
--Watching backend docker logs       docker compose exec logs -f backend 
+-Watching backend docker logs       docker compose logs -f backend 
