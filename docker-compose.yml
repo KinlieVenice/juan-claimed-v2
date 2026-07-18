@@ -25,6 +25,8 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app?schema=public
       BACKEND_PORT: 4000
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -37,6 +39,9 @@ services:
     restart: unless-stopped
     ports:
       - "5173:5173"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
