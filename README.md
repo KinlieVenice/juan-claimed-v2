@@ -1,76 +1,89 @@
 # Project Setup
 
-Stack: React + TS + Tailwind (frontend), Express + TS + Prisma + Postgres (backend).
+Stack: React + TS + Tailwind (frontend), Express + TS + Prisma + Postgres (backend), all dockerized.
 
 ## Prerequisites
 
-- Node.js 22+ (LTS)
-- PostgreSQL 17 installed and running locally (or a remote instance you have a connection string for)
+- Docker Desktop installed and running
+
+That's it — no local Node/Postgres install needed.
 
 ## First-time setup
 
 ```bash
 git clone <repo-url>
 cd juan-claimed-v2
+docker compose up -d --build
 ```
 
-### 1. Create the database
+This starts 3 containers:
+
+| Service  | Port | URL                    |
+|----------|------|------------------------|
+| frontend | 5173 | http://localhost:5173  |
+| backend  | 4000 | http://localhost:4000  |
+| postgres | 5432 | localhost:5432          |
+
+First boot, run migrations to create tables:
 
 ```bash
-psql -U postgres -c "CREATE DATABASE app;"
+docker compose exec backend npx prisma migrate dev --name init
 ```
 
-(adjust user/db name to your local Postgres setup)
-
-### 2. Backend
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-```
-
-Edit `.env` if your Postgres user/password/port differ from the default:
-
-```
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/app?schema=public"
-BACKEND_PORT=4000
-```
-
-Run migrations (creates tables + generates Prisma Client):
-
-```bash
-npx prisma migrate dev
-```
-
-Start the dev server:
-
-```bash
-npm run dev
-```
-
-Check it's alive:
+Check backend is alive:
 
 ```bash
 curl http://localhost:4000/health
 ```
 
-### 3. Frontend
-
-```bash
-cd ../frontend
-npm install
-npm run dev
-```
-
-Opens at `http://localhost:5173`.
-
 ## Daily use
 
 ```bash
-cd backend && npm run dev     # backend, hot-reloads on save (tsx watch)
-cd frontend && npm run dev    # frontend, hot-reloads on save (Vite)
+docker compose up -d       # start everything
+docker compose logs -f backend    # tail backend logs
+docker compose logs -f frontend   # tail frontend logs
+docker compose down        # stop everything (keeps db data)
 ```
+
+Source code is bind-mounted into containers — edit files locally, both `tsx watch` (backend) and Vite (frontend) hot-reload automatically. No rebuild needed for code changes, only rebuild when you change `package.json` deps or Dockerfile:
+
+```bash
+docker compose up -d --build
+```
+
+## Prisma workflow
+
+Schema lives at `backend/prisma/schema.prisma`. Example model:
+
+```prisma
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+}
+```
+
+Whenever you change `schema.prisma`:
+
+```bash
+docker compose exec backend npx prisma migrate dev --name <describe-change>
+```
+
+This creates a migration file, applies it to the db, and regenerates the Prisma Client into `backend/src/generated/prisma`.
+
+If you only changed the schema output/generator config (no model changes), regenerate client without a migration:
+
+```bash
+docker compose exec backend npx prisma generate
+```
+
+Inspect data visually:
+
+```bash
+docker compose exec backend npx prisma studio
+```
+(opens on port 5555 — add `5555:5555` to backend's ports in docker-compose.yml if you want to reach it from host browser)
 
 ## Backend is an ESM project
 
@@ -80,34 +93,9 @@ cd frontend && npm run dev    # frontend, hot-reloads on save (Vite)
 - Type-only imports must use `import type { Foo } from "..."` (e.g. `Request`/`Response` from express) — enforced by `verbatimModuleSyntax` in `tsconfig.json`.
 - Forgetting the `.js` extension is the most common mistake here — it compiles fine but fails at runtime with `ERR_MODULE_NOT_FOUND`.
 
-## Prisma workflow
-
-Schema lives at `backend/prisma/schema.prisma`.
-
-Whenever you change `schema.prisma`:
-
-```bash
-npx prisma migrate dev --name <describe-change>
-```
-
-This creates a migration file, applies it to the db, and regenerates the Prisma Client into `backend/src/generated/prisma`.
-
-If you only changed generator config (no model changes), regenerate client without a migration:
-
-```bash
-npx prisma generate
-```
-
-Inspect data visually:
-
-```bash
-npx prisma studio
-```
-Opens at `http://localhost:5555`.
-
 ## Using Prisma in backend code
 
-Prisma Client requires a driver adapter (Prisma 7). Import the shared client instance from `backend/src/utils/prisma.ts` — never instantiate `new PrismaClient()` elsewhere (avoids exhausting db connections).
+Prisma Client requires a driver adapter now (Prisma 7). Import the shared client instance from `backend/src/utils/prisma.ts` — never instantiate `new PrismaClient()` elsewhere (avoids exhausting db connections).
 
 ```ts
 // backend/src/utils/prisma.ts
@@ -178,15 +166,16 @@ Folder convention:
 
 ## Environment variables
 
-`backend/.env` is gitignored — every dev needs their own copy:
+`.env` is gitignored — every dev needs their own copy, it does NOT come from `git clone`.
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
+When running via `docker compose`, the `DATABASE_URL`/`PORT` set in `docker-compose.yml` override `backend/.env` anyway (points at the `postgres` service instead of `localhost`) — but `backend/.env` is still required to exist for commands run outside Docker (e.g. `npx prisma studio` from your host, editor tooling) and because Prisma's config loader errors if the file is missing entirely.
+
 ## Troubleshooting
 
-- `ECONNREFUSED` connecting to db: Postgres isn't running, or `DATABASE_URL` in `.env` doesn't match your local user/password/port.
-- Port already in use: another process holds 5173/4000/5555 — stop it or change the port in `.env` / `vite.config.ts`.
-- Prisma client not found errors: run `npx prisma generate` inside `backend/`.
-- Reset db: `DROP DATABASE app; CREATE DATABASE app;` in psql, then `npx prisma migrate dev` again.
+- Port already in use: another process holds 5173/4000/5432 — stop it or change the port mapping in `docker-compose.yml`.
+- Prisma client not found errors: run `docker compose exec backend npx prisma generate`.
+- Reset db completely: `docker compose down -v` (deletes postgres volume), then `docker compose up -d --build` and re-run migrations.
