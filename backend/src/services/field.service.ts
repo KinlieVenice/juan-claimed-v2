@@ -47,7 +47,7 @@ export const addField = async (data: CreateUpdateFieldDto) => {
         fieldInputTypeId: data.fieldInputTypeId,
         parentFieldId: data.parentFieldId || null,
         fieldHierarchyId: data.fieldHierarchyId || null,
-        configJson: data.configJson === null ? Prisma.DbNull : data.configJson,
+        configJson: data.configJson === null ? Prisma.DbNull : (data.configJson as Prisma.InputJsonValue),
       },
     });
   } catch (error) {
@@ -83,7 +83,7 @@ export const editField = async (id: string, data: CreateUpdateFieldDto) => {
         fieldInputTypeId: data.fieldInputTypeId,
         parentFieldId: data.parentFieldId || null,
         fieldHierarchyId: data.fieldHierarchyId || null,
-        configJson: data.configJson === null ? Prisma.DbNull : data.configJson,
+        configJson: data.configJson === null ? Prisma.DbNull : (data.configJson as Prisma.InputJsonValue),
       },
     });
   } catch (error) {

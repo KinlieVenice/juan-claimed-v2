@@ -1,23 +1,23 @@
 import type { Request } from "express";
-import type { Prisma } from "../generated/prisma/client.js";
+import { z } from "zod";
 
 // Define what fields you expect from the user
-export interface CreateUpdateFieldDto {
-    key: string;
-    englishName: string;
-    tagalogName: string;
-    description: string;
-    classification: "GLOBAL" | "FOLLOW_UP";
-    default: boolean;
-    required: boolean;
-    sortOrder: number;
-    configJson: Prisma.InputJsonValue | null;
-    fieldInputTypeId: string;
-    parentFieldId: string | null;
-    fieldHierarchyId: string | null;
-}
+export const createUpdateFieldSchema = z.object({
+    key: z.string().min(1),
+    englishName: z.string().min(1),
+    tagalogName: z.string().min(1),
+    description: z.string(),
+    classification: z.enum(["GLOBAL", "FOLLOW_UP"]),
+    default: z.boolean(),
+    required: z.boolean(),
+    sortOrder: z.number().int(),
+    configJson: z.record(z.string(), z.unknown()).nullable(),
+    fieldInputTypeId: z.string().min(1),
+    parentFieldId: z.string().min(1).nullable(),
+    fieldHierarchyId: z.string().min(1).nullable(),
+});
 
-
+export type CreateUpdateFieldDto = z.infer<typeof createUpdateFieldSchema>;
 
 // Attach that structure directly to the Express Request
 // Request(ReqParams, ResBody, ReqBody, ReqQuery) = < {}, {}, {}, {} >
