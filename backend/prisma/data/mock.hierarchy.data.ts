@@ -22,11 +22,15 @@ export interface HierarchyLevelDef {
 export const locationHierarchy: {
   englishName: string;
   tagalogName: string;
+  englishDescription: string;
+  tagalogDescription: string;
   levels: HierarchyLevelDef[];
   nodes: HierarchyNodeDef[];
 } = {
   englishName: "Location",
   tagalogName: "Lokasyon",
+  englishDescription: "Region / province / city hierarchy used for residence-location fields.",
+  tagalogDescription: "Hiyerarkiya ng rehiyon / lalawigan / lungsod para sa mga field ng lokasyon ng tirahan.",
   levels: [
     {
       level: 1,

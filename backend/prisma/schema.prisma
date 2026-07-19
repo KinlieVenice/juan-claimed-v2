@@ -554,6 +554,9 @@ model DimFieldHierarchy {
   englishName String @db.VarChar(255)
   tagalogName String @db.VarChar(255)
 
+  englishDescription String
+  tagalogDescription String
+
   fields               DimField[]
   fieldHierarchyLevels DimFieldHierarchyLevel[]
   fieldHierarchyNodes  DimFieldHierarchyNode[]

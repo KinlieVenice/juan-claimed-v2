@@ -10,7 +10,7 @@
 // modify them (they're seeded separately via prisma/seeders/fieldConfigSeeder.ts).
 
 import { prisma, Prisma } from "../../src/utils/prisma.js";
-import { toSnakeCaseKey } from "../../src/utils/slug.util.js";
+import { generateUniqueCode, namesMatch } from "../../src/utils/slug.util.js";
 import { globalFields, benefits, type FieldDef, type RuleNode } from "../data/mock.benefits.data.js";
 import { locationHierarchy, type HierarchyNodeDef } from "../data/mock.hierarchy.data.js";
 
@@ -78,7 +78,12 @@ async function ensureHierarchy(): Promise<string> {
   let hierarchy = await prisma.dimFieldHierarchy.findFirst({ where: { englishName: locationHierarchy.englishName } });
   if (!hierarchy) {
     hierarchy = await prisma.dimFieldHierarchy.create({
-      data: { englishName: locationHierarchy.englishName, tagalogName: locationHierarchy.tagalogName },
+      data: {
+        englishName: locationHierarchy.englishName,
+        tagalogName: locationHierarchy.tagalogName,
+        englishDescription: locationHierarchy.englishDescription,
+        tagalogDescription: locationHierarchy.tagalogDescription,
+      },
     });
   }
 
@@ -120,38 +125,44 @@ async function createField(
     throw new Error(`Unknown inputType "${def.inputType}" for field "${defKeyPath}" — is it seeded in DimFieldInputType?`);
   }
 
-  // key is the normalized (case/whitespace/separator-insensitive) form of englishName,
-  // globally unique — see toSnakeCaseKey and schema.prisma's DimField comment. This means
-  // englishName must be globally unique across every field (not just within one benefit),
-  // unlike the old "<benefitSlug>.<fieldKey>" scheme.
-  const key = toSnakeCaseKey(def.englishName);
+  // key is generated once at creation (generateUniqueCode) and never recomputed on
+  // update — it's the stable identifier, englishName is free to change without orphaning
+  // anything that references this field by key. So re-running the factory looks up an
+  // existing row by matching the CURRENT englishName (not a stored key's frozen suffix,
+  // which would go stale after a rename — see namesMatch). englishName must still be
+  // globally unique across every field, unlike the old "<benefitSlug>.<fieldKey>" scheme.
   const fieldHierarchyId = def.hierarchy ? hierarchyId : null;
 
-  const field = await prisma.dimField.upsert({
-    where: { key },
-    update: {
-      key,
-      englishName: def.englishName,
-      tagalogName: def.tagalogName,
-      description: def.description,
-      fieldInputTypeId,
-      fieldHierarchyId,
-      parentFieldId,
-      required: def.required ?? true,
-      classification: def.classification ?? "GLOBAL",
-    },
-    create: {
-      key,
-      englishName: def.englishName,
-      tagalogName: def.tagalogName,
-      description: def.description,
-      fieldInputTypeId,
-      fieldHierarchyId,
-      parentFieldId,
-      required: def.required ?? true,
-      classification: def.classification ?? "GLOBAL",
-    },
-  });
+  const allFields = await prisma.dimField.findMany({ select: { id: true, englishName: true } });
+  const existingField = allFields.find((field) => namesMatch(field.englishName, def.englishName)) ?? null;
+
+  const field = existingField
+    ? await prisma.dimField.update({
+        where: { id: existingField.id },
+        data: {
+          englishName: def.englishName,
+          tagalogName: def.tagalogName,
+          description: def.description,
+          fieldInputTypeId,
+          fieldHierarchyId,
+          parentFieldId,
+          required: def.required ?? true,
+          classification: def.classification ?? "GLOBAL",
+        },
+      })
+    : await prisma.dimField.create({
+        data: {
+          key: generateUniqueCode(def.englishName),
+          englishName: def.englishName,
+          tagalogName: def.tagalogName,
+          description: def.description,
+          fieldInputTypeId,
+          fieldHierarchyId,
+          parentFieldId,
+          required: def.required ?? true,
+          classification: def.classification ?? "GLOBAL",
+        },
+      });
 
   if (def.options) {
     for (const [index, option] of def.options.entries()) {
