@@ -9,6 +9,9 @@ import { requireRole } from "../middlewares/role.middleware.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
 import { createBenefitSchema, editBenefitSchema } from "../requests/benefit.request.js";
 import { PERMISSIONS } from "../constants/permissions.js";
+import { benefitRequirementRouter } from "./benefitRequirement.routes.js";
+import { benefitUtilizationRouter } from "./benefitUtilization.routes.js";
+import { benefitAttachmentRouter } from "./benefitAttachment.routes.js";
 
 export const benefitRouter = Router();
 
@@ -34,3 +37,7 @@ benefitRouter.delete(
   requireRole(PERMISSIONS.DELETE_BENEFITS),
   deleteBenefit,
 );
+
+benefitRouter.use("/:benefitId/requirements", benefitRequirementRouter);
+benefitRouter.use("/:benefitId/utilizations", benefitUtilizationRouter);
+benefitRouter.use("/:benefitId/attachments", benefitAttachmentRouter);

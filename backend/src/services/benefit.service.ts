@@ -1,7 +1,6 @@
 import { prisma } from "../utils/prisma.js";
 import {
-  assertUserAuthorizedForBenefit,
-  getScopeIdMap,
+  assertUserCanModifyBenefit,
   resolvePsgcCodesForUser,
 } from "./benefitLocation.service.js";
 
@@ -9,7 +8,9 @@ const validateBenefitInput = (data: any, user: any) => {
   const isNationwide = data.nationwide === true;
   const incomingCodes: string[] = data.psgcCodes || [];
 
-  if (isNationwide && user.scope?.value !== "NATIONAL") {
+  const isNationalLevel = user.scope?.value === "NATIONAL" || user.scope?.value === "SUPERADMIN";
+
+  if (isNationwide && !isNationalLevel) {
     throw new Error(
       "FORBIDDEN: Only national users may create nationwide benefits.",
     );
@@ -19,7 +20,7 @@ const validateBenefitInput = (data: any, user: any) => {
     throw new Error("INVALID_INPUT: At least one psgcCodes array is required.");
   }
 
-  if (user.scope?.value === "NATIONAL" && (data.groupIds || []).length === 0) {
+  if (isNationalLevel && (data.groupIds || []).length === 0) {
     throw new Error("INVALID_INPUT: National users must assign at least one group.");
   }
 
@@ -83,16 +84,7 @@ export const createBenefit = async (data: any, user: any) => {
 };
 
 export const editBenefit = async (id: string, data: any, user: any) => {
-  const existing = await prisma.fctBenefit.findFirst({
-    where: { id, deletedAt: null },
-    include: {
-      benefitPsgcCodes: { where: { deletedAt: null } },
-    },
-  });
-  if (!existing) throw new Error("BENEFIT_NOT_FOUND");
-
-  const scopeMap = await getScopeIdMap();
-  await assertUserAuthorizedForBenefit(existing, user, scopeMap);
+  await assertUserCanModifyBenefit(id, user);
 
   const { isNationwide, incomingCodes } = validateBenefitInput(data, user);
 
@@ -171,16 +163,7 @@ export const editBenefit = async (id: string, data: any, user: any) => {
 };
 
 export const deleteBenefit = async (id: string, user: any) => {
-  const existing = await prisma.fctBenefit.findFirst({
-    where: { id, deletedAt: null },
-    include: {
-      benefitPsgcCodes: { where: { deletedAt: null } },
-    },
-  });
-  if (!existing) throw new Error("BENEFIT_NOT_FOUND");
-
-  const scopeMap = await getScopeIdMap();
-  await assertUserAuthorizedForBenefit(existing, user, scopeMap);
+  await assertUserCanModifyBenefit(id, user);
 
   const deletedAt = new Date();
 

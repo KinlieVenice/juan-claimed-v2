@@ -10,10 +10,10 @@ export const getScopeValueForLocation = (location: any): string => location.scop
 
 /**
  * Hierarchical boundary check: does this user's own scope/psgcCode
- * authorize acting on the given location? NATIONAL always passes.
+ * authorize acting on the given location? NATIONAL and SUPERADMIN always pass.
  */
 export const isUserAuthorizedForLocation = (user: any, location: any): boolean => {
-  if (user.scope?.value === "NATIONAL") return true;
+  if (user.scope?.value === "NATIONAL" || user.scope?.value === "SUPERADMIN") return true;
 
   switch (user.scope?.value) {
     case "REGIONS":
@@ -112,7 +112,7 @@ export const assertUserAuthorizedForBenefit = async (
   scopeMap: Map<string, string>,
 ): Promise<void> => {
   if (benefit.isNationwide) {
-    if (user.scope?.value !== "NATIONAL") {
+    if (user.scope?.value !== "NATIONAL" && user.scope?.value !== "SUPERADMIN") {
       throw new Error(
         "FORBIDDEN: Only national users may modify nationwide benefits.",
       );
@@ -123,4 +123,26 @@ export const assertUserAuthorizedForBenefit = async (
   for (const { psgcCode } of benefit.benefitPsgcCodes) {
     await resolvePsgcCodeForUser(psgcCode, user, scopeMap);
   }
+};
+
+/**
+ * Fetches an active benefit by id and verifies the user is authorized to
+ * modify it (via assertUserAuthorizedForBenefit). Used by requirement/
+ * utilization/attachment CRUD, since modifying a benefit's children is
+ * effectively modifying the benefit. Throws BENEFIT_NOT_FOUND / FORBIDDEN /
+ * INVALID_PSGC_CODE / SCOPE_NOT_FOUND on failure.
+ */
+export const assertUserCanModifyBenefit = async (benefitId: string, user: any) => {
+  const benefit = await prisma.fctBenefit.findFirst({
+    where: { id: benefitId, deletedAt: null },
+    include: {
+      benefitPsgcCodes: { where: { deletedAt: null } },
+    },
+  });
+  if (!benefit) throw new Error("BENEFIT_NOT_FOUND");
+
+  const scopeMap = await getScopeIdMap();
+  await assertUserAuthorizedForBenefit(benefit, user, scopeMap);
+
+  return benefit;
 };
