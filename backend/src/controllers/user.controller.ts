@@ -1,6 +1,14 @@
 import type { Request, Response } from "express";
 import * as userService from "../services/user.service.js";
-import type { AssignRoleRequest } from "../requests/user.request.js";
+import type { AssignRoleRequest, CreateUserRequest } from "../requests/user.request.js";
+
+const MATRIX_CONSTRAINT_ERRORS = [
+  "INVALID_SUPERADMIN_CONFIG",
+  "AGENT_REQUIRES_SCOPE",
+  "INVALID_NATIONAL_AGENT_CONFIG",
+  "INVALID_LOCAL_AGENT_CONFIG",
+  "INVALID_USER_CONFIG",
+];
 
 export const getAllUsers = async (_req: Request, res: Response) => {
   try {
@@ -67,8 +75,12 @@ export const assignRoleAndScope = async (
   res: Response,
 ) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
     const { id } = req.params;
-    const updatedUser = await userService.assignUserRole(id, req.body);
+    const updatedUser = await userService.assignUserRole(id, req.body, req.user);
 
     return res.status(200).json({
       success: true,
@@ -91,16 +103,7 @@ export const assignRoleAndScope = async (
       });
     }
 
-    // Handle Matrix Constraint Violations
-    const constraintErrors = [
-      "INVALID_SUPERADMIN_CONFIG",
-      "AGENT_REQUIRES_SCOPE",
-      "INVALID_NATIONAL_AGENT_CONFIG",
-      "INVALID_LOCAL_AGENT_CONFIG",
-      "INVALID_USER_CONFIG",
-    ];
-
-    if (constraintErrors.includes(error.message)) {
+    if (MATRIX_CONSTRAINT_ERRORS.includes(error.message)) {
       return res.status(400).json({
         success: false,
         message: "Could not assign role.",
@@ -115,6 +118,64 @@ export const assignRoleAndScope = async (
     return res.status(500).json({
       success: false,
       message: "Could not assign role.",
+      error: "An unexpected error occurred on the server.",
+      errorCode: "SERVER_ERROR",
+      data: null,
+    });
+  }
+};
+
+export const createUser = async (req: CreateUserRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const newUser = await userService.createUser(req.body, req.user);
+
+    return res.status(201).json({
+      success: true,
+      message: "User created successfully.",
+      error: null,
+      errorCode: null,
+      data: newUser,
+    });
+  } catch (error: any) {
+    if (error.message === "INVALID_SCOPE") {
+      return res.status(404).json({
+        success: false,
+        message: "Could not create user.",
+        error: "The requested scope does not exist.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    if (MATRIX_CONSTRAINT_ERRORS.includes(error.message)) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not create user.",
+        error:
+          "The provided role, scope, group, and PSGC configuration violates system constraints.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        success: false,
+        message: "Could not create user.",
+        error: "This username or email is already in use.",
+        errorCode: "DUPLICATE_USER",
+        data: null,
+      });
+    }
+
+    console.error("[UserController] Error creating user:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not create user.",
       error: "An unexpected error occurred on the server.",
       errorCode: "SERVER_ERROR",
       data: null,

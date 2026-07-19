@@ -3,6 +3,7 @@ import {
   assertUserCanModifyBenefit,
   resolvePsgcCodesForUser,
 } from "./benefitLocation.service.js";
+import { getPsgcLocation } from "./psgc.service.js";
 
 const validateBenefitInput = (data: any, user: any) => {
   const isNationwide = data.nationwide === true;
@@ -37,6 +38,41 @@ const enrichBenefitPsgcCodes = <T extends { benefitPsgcCodes: { psgcCode: string
     locationName: locationNameMap.get(pc.psgcCode),
   })),
 });
+
+export const listBenefits = async () => {
+  return prisma.fctBenefit.findMany({
+    where: { deletedAt: null },
+    include: {
+      benefitPsgcCodes: { where: { deletedAt: null }, include: { scope: true } },
+      benefitGroups: { where: { deletedAt: null }, include: { group: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+export const getBenefitById = async (id: string) => {
+  const benefit = await prisma.fctBenefit.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      benefitPsgcCodes: { where: { deletedAt: null }, include: { scope: true } },
+      benefitGroups: { where: { deletedAt: null }, include: { group: true } },
+    },
+  });
+  if (!benefit) throw new Error("BENEFIT_NOT_FOUND");
+
+  const locationNameMap = new Map(
+    (
+      await Promise.all(
+        benefit.benefitPsgcCodes.map(async (pc) => {
+          const location = await getPsgcLocation(pc.psgcCode);
+          return [pc.psgcCode, location?.name ?? null] as const;
+        }),
+      )
+    ).filter((entry): entry is [string, string] => entry[1] !== null),
+  );
+
+  return enrichBenefitPsgcCodes(benefit, locationNameMap);
+};
 
 export const createBenefit = async (data: any, user: any) => {
   const { isNationwide, incomingCodes } = validateBenefitInput(data, user);

@@ -1,10 +1,40 @@
 import type { Request, Response } from "express";
 import {
+  listBenefits as listBenefitsService,
+  getBenefitById as getBenefitByIdService,
   createBenefit as createBenefitService,
   editBenefit as editBenefitService,
   deleteBenefit as deleteBenefitService,
 } from "../services/benefit.service.js";
 import { handleApiError } from "../utils/errorMapping.js";
+
+export const listBenefits = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const benefits = await listBenefitsService();
+
+    res.status(200).json({ success: true, data: benefits });
+  } catch (error: any) {
+    handleApiError(error, res);
+  }
+};
+
+export const getBenefitById = async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const benefit = await getBenefitByIdService(req.params.id);
+
+    res.status(200).json({ success: true, data: benefit });
+  } catch (error: any) {
+    handleApiError(error, res);
+  }
+};
 
 export const createBenefit = async (req: Request, res: Response) => {
   try {

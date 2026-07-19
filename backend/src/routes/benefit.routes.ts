@@ -1,5 +1,7 @@
 import { Router } from "express";
 import {
+  listBenefits,
+  getBenefitById,
   createBenefit,
   editBenefit,
   deleteBenefit,
@@ -14,6 +16,10 @@ import { benefitUtilizationRouter } from "./benefitUtilization.routes.js";
 import { benefitAttachmentRouter } from "./benefitAttachment.routes.js";
 
 export const benefitRouter = Router();
+
+benefitRouter.get("/", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), listBenefits);
+
+benefitRouter.get("/:id", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), getBenefitById);
 
 benefitRouter.post(
   "/",
