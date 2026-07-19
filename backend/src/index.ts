@@ -15,6 +15,7 @@ import { benefitRouter } from "./routes/benefit.routes.js";
 import { scopeRouter } from "./routes/scope.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { attachmentUploadRouter } from "./routes/attachmentUpload.routes.js";
+import { fieldAnswerRouter } from "./routes/fieldAnswer.route.js";
 
 
 const app = express();
@@ -29,11 +30,12 @@ app.use((req, _res, next) => {
 });
 
 app.use("/health", healthRouter);
-app.use("/api/api/fieldss", fieldRouter);
+app.use("/api/fields", fieldRouter);
 app.use("/api/rule-groups", ruleGroupRouter);
 app.use("/api/dynamic-rule-groups", dynamicRuleGroupRouter);
 app.use("/api/field-hierarchies", fieldHierarchyRouter);
 app.use("/api", fieldLookupRouter);
+app.use("/api/field-answers", fieldAnswerRouter);
 
 app.use("/api/groups", groupRouter);
 app.use("/api/users", userRouter);

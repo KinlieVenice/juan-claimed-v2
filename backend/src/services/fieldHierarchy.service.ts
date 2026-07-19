@@ -1,7 +1,5 @@
-import { prisma, Prisma } from "../utils/prisma.js";
+import { prisma, type DbClient } from "../utils/prisma.js";
 import { generateUniqueCode, namesMatch } from "../utils/slug.util.js";
-
-type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export interface HierarchyLevelInput {
   level: number;

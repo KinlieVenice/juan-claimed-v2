@@ -1,7 +1,5 @@
-import { prisma, Prisma } from "../utils/prisma.js";
+import { prisma, Prisma, type DbClient } from "../utils/prisma.js";
 import { generateUniqueCode, namesMatch } from "../utils/slug.util.js";
-
-type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export interface FieldOptionInput {
   englishName: string;

@@ -1,8 +1,7 @@
-import { prisma, Prisma } from "../utils/prisma.js";
+import { prisma, Prisma, type DbClient } from "../utils/prisma.js";
 import { buildRuleGroupTree } from "../utils/treeBuilder.util.js";
 import { matchRuleGroupTree } from "../utils/ruleGroupMatcher.util.js";
 
-type DbClient = typeof prisma | Prisma.TransactionClient;
 type LogicalOperator = "ALL" | "ANY";
 
 // A single AND/OR tree submitted in one shot from a "big modal" — mirrors
@@ -14,16 +13,18 @@ export type DynamicRuleTreeNode =
 
 export type DynamicRuleTreeRoot = Extract<DynamicRuleTreeNode, { kind: "group" }>;
 
-// FETCH DYNAMIC RULE GROUP TREE
-export const fetchDynamicRuleGroupTree = async (fieldId: string) => {
-  const allGroups = await prisma.fctDynamicRuleGroup.findMany({
+// FETCH DYNAMIC RULE GROUP TREE — "With" variant takes an explicit db client so it can
+// participate in a caller's own transaction, same pattern as every other service's bulk
+// "...With(db, ...)" functions.
+export const fetchDynamicRuleGroupTreeWith = async (db: DbClient, fieldId: string) => {
+  const allGroups = await db.fctDynamicRuleGroup.findMany({
     where: { fieldId },
     include: { field: { include: { fieldInputType: true } } },
   });
 
   const groupIds = allGroups.map((g) => g.id);
 
-  const allConditions = await prisma.fctDynamicFieldCondition.findMany({
+  const allConditions = await db.fctDynamicFieldCondition.findMany({
     where: { dynamicRuleGroupId: { in: groupIds } },
     include: { fieldConditionOperator: true },
   });
@@ -31,10 +32,14 @@ export const fetchDynamicRuleGroupTree = async (fieldId: string) => {
   return buildRuleGroupTree(allGroups, allConditions, "dynamicRuleGroupId");
 };
 
+export const fetchDynamicRuleGroupTree = async (fieldId: string) => {
+  return await fetchDynamicRuleGroupTreeWith(prisma, fieldId);
+};
+
 // answers: a resolved map of fieldId -> the applicant's actual answer value (already
 // coerced into the shape condition.util.ts's compare() expects for that field's inputType).
-export const evaluateDynamicFieldCondition = async (fieldId: string, answers: Record<string, unknown>): Promise<boolean> => {
-  const tree = await fetchDynamicRuleGroupTree(fieldId);
+export const evaluateDynamicFieldConditionWith = async (db: DbClient, fieldId: string, answers: Record<string, unknown>): Promise<boolean> => {
+  const tree = await fetchDynamicRuleGroupTreeWith(db, fieldId);
 
   return matchRuleGroupTree(tree, answers, (leaf, group) => ({
     fieldId: group.field.id,
@@ -42,6 +47,10 @@ export const evaluateDynamicFieldCondition = async (fieldId: string, answers: Re
     operator: leaf.fieldConditionOperator.value,
     targetValue: leaf.conditionFieldValue,
   }));
+};
+
+export const evaluateDynamicFieldCondition = async (fieldId: string, answers: Record<string, unknown>): Promise<boolean> => {
+  return await evaluateDynamicFieldConditionWith(prisma, fieldId, answers);
 };
 
 // A dynamic rule group's field must exist and must NOT be a repeater subfield — a

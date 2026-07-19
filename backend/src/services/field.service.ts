@@ -1,4 +1,4 @@
-import { prisma, Prisma } from "../../src/utils/prisma.js"
+import { prisma, Prisma, type DbClient } from "../utils/prisma.js";
 import type { CreateUpdateFieldDto } from "../requests/field.request.js";
 import { generateUniqueCode, namesMatch } from "../utils/slug.util.js";
 import {
@@ -19,8 +19,6 @@ import {
   type HierarchyLevelInput,
   type HierarchyNodeInput,
 } from "./fieldHierarchy.service.js";
-
-type DbClient = typeof prisma | Prisma.TransactionClient;
 
 // The whole field bundle in one call, for exactly ONE field at a time (never bulk across
 // many fields — creating/editing many fields at once isn't a real use case the way bulk

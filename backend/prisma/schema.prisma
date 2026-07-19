@@ -105,6 +105,9 @@ model DimUser {
   benefitFieldConditionsUpdators DimBenefitFieldCondition[]  @relation("BenefitFieldConditionUpdatedBy")
   userFieldAnswersCreators       FctUserFieldAnswer[]        @relation("UserFieldAnswerCreatedBy")
   userFieldAnswersUpdators       FctUserFieldAnswer[]        @relation("UserFieldAnswerUpdatedBy")
+  userFieldAnswerGroups          FctUserFieldAnswerGroup[]
+  userFieldAnswerGroupsCreators  FctUserFieldAnswerGroup[]   @relation("UserFieldAnswerGroupCreatedBy")
+  userFieldAnswerGroupsUpdators  FctUserFieldAnswerGroup[]   @relation("UserFieldAnswerGroupUpdatedBy")
   dynamicFieldConditionsCreators FctDynamicFieldCondition[]  @relation("DynamicFieldConditionCreatedBy")
   dynamicFieldConditionsUpdators FctDynamicFieldCondition[]  @relation("DynamicFieldConditionUpdatedBy")
   benefitPsgcCodesCreators       DimBenefitPsgcCode[]        @relation("BenefitPsgcCreatedBy")
@@ -461,15 +464,16 @@ model DimField {
   fieldHierarchyId String?
   hierarchy        DimFieldHierarchy? @relation(fields: [fieldHierarchyId], references: [id])
 
-  required      Boolean             @default(true)
-  sortOrder     Int                 @default(0)
-  configJson    Json?
+  required       Boolean             @default(true)
+  sortOrder      Int                 @default(0)
+  configJson     Json?
   classification FieldClassification @default(FOLLOW_UP)
-  default       Boolean             @default(false)
+  default        Boolean             @default(false)
 
-  userFieldAnswers  FctUserFieldAnswer[]
-  fieldOptions      DimFieldOption[]
-  dynamicRuleGroups FctDynamicRuleGroup[]
+  userFieldAnswers      FctUserFieldAnswer[]
+  userFieldAnswerGroups FctUserFieldAnswerGroup[]
+  fieldOptions          DimFieldOption[]
+  dynamicRuleGroups     FctDynamicRuleGroup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -488,6 +492,7 @@ model DimField {
 enum FieldClassification {
   GLOBAL
   FOLLOW_UP
+  PROFILE
 }
 
 //for context these are some of the types
@@ -672,6 +677,13 @@ model FctUserFieldAnswer {
   fieldId String
   field   DimField @relation(fields: [fieldId], references: [id])
 
+  // Set only when answering a REPEATER_GROUP subfield — identifies which row/instance of
+  // the repeater this value belongs to. Null for every non-repeater answer. NULL is not
+  // unique-constrained by Postgres, so the non-repeater one-answer-per-(user,field)
+  // invariant is enforced at the service layer, not by @@unique below.
+  repeaterGroupId String?
+  repeaterGroup   FctUserFieldAnswerGroup? @relation(fields: [repeaterGroupId], references: [id])
+
   field_value String? @db.VarChar(255)
 
   createdAt DateTime @default(now())
@@ -685,7 +697,41 @@ model FctUserFieldAnswer {
 
   deletedAt DateTime?
 
+  @@unique([fieldId, repeaterGroupId])
+  @@index([userId, fieldId])
   @@map("fct_user_field_answer")
+}
+
+// One row-instance ("row") of a REPEATER_GROUP field for a given user — e.g. one
+// dependent, one property owned. FctUserFieldAnswer rows for that repeater's subfields
+// reference this via repeaterGroupId to say which row they belong to.
+model FctUserFieldAnswerGroup {
+  id String @id @default(uuid())
+
+  userId String
+  user   DimUser @relation(fields: [userId], references: [id])
+
+  // The REPEATER_GROUP field this row-instance belongs to (the parent field itself,
+  // never a subfield).
+  fieldId String
+  field   DimField @relation(fields: [fieldId], references: [id])
+
+  sortOrder Int @default(0)
+
+  answers FctUserFieldAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("UserFieldAnswerGroupCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("UserFieldAnswerGroupUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@map("fct_user_field_answer_group")
 }
 
 model FctDynamicFieldCondition {
