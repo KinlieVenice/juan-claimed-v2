@@ -3,7 +3,6 @@ import { z } from "zod";
 
 // Define what fields you expect from the user
 export const createUpdateFieldSchema = z.object({
-    key: z.string().min(1),
     englishName: z.string().min(1),
     tagalogName: z.string().min(1),
     description: z.string(),

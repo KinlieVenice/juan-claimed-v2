@@ -94,6 +94,16 @@ export const createField = async (req: CreateFieldRequest, res: Response) => {
       });
     }
 
+    if (error.message === "NESTED_REPEATER_GROUP_NOT_ALLOWED") {
+      return res.status(400).json({
+        success: false,
+        message: "Could not create field.",
+        error: "A repeater subfield cannot itself be a REPEATER_GROUP.",
+        errorCode: error.message,
+        data: null
+      });
+    }
+
     console.error("[FieldController] Error creating field:", error);
     return res.status(500).json({ 
       success: false,
@@ -136,6 +146,36 @@ export const updateField = async (req: UpdateFieldRequest, res: Response) => {
         success: false,
         message: "Could not update field.",
         error: "The referenced parent field, hierarchy, or input type does not exist.",
+        errorCode: error.message,
+        data: null
+      });
+    }
+
+    if (error.message === "DUPLICATE_KEY") {
+      return res.status(409).json({
+        success: false,
+        message: "Could not update field.",
+        error: "A field with this identifier key already exists.",
+        errorCode: error.message,
+        data: null
+      });
+    }
+
+    if (error.message === "NESTED_REPEATER_GROUP_NOT_ALLOWED") {
+      return res.status(400).json({
+        success: false,
+        message: "Could not update field.",
+        error: "A repeater subfield cannot itself be a REPEATER_GROUP.",
+        errorCode: error.message,
+        data: null
+      });
+    }
+
+    if (error.message === "DYNAMIC_RULE_GROUP_NOT_ALLOWED_FOR_REPEATER_SUBFIELD") {
+      return res.status(409).json({
+        success: false,
+        message: "Could not update field.",
+        error: "This field has an existing dynamic rule group and cannot become a repeater subfield.",
         errorCode: error.message,
         data: null
       });
