@@ -1,27 +1,21 @@
 import { prisma } from "../utils/prisma.js";
-import { getPsgcLocation } from "./psgc.service.js";
+import {
+  assertUserAuthorizedForBenefit,
+  getScopeIdMap,
+  resolvePsgcCodesForUser,
+} from "./benefitLocation.service.js";
 
-/**
- * Helper to determine the DimScope value based on location properties.
- * We prioritize checking sub-codes to define the administrative level.
- */
-const getScopeValueForLocation = (location: any) => {
-  if (location.barangayCode) return "BARANGAYS";
-  if (location.cityCode || location.municipalityCode)
-    return "CITIES-MUNICIPALITIES";
-  if (location.districtCode) return "DISTRICTS";
-  if (location.provinceCode) return "PROVINCES";
-  return "REGIONS"; // Fallback
-};
-
-export const createBenefit = async (data: any, user: any) => {
-  // 1. Setup: Get all scopes from DB for dynamic mapping
-  const allScopes = await prisma.dimScope.findMany();
-  const scopeMap = new Map(allScopes.map((s) => [s.value, s.id]));
-
-  // 2. Validate Inputs
+const validateBenefitInput = (data: any, user: any) => {
+  const isNationwide = data.nationwide === true;
   const incomingCodes: string[] = data.psgcCodes || [];
-  if (incomingCodes.length === 0) {
+
+  if (isNationwide && user.scope?.value !== "NATIONAL") {
+    throw new Error(
+      "FORBIDDEN: Only national users may create nationwide benefits.",
+    );
+  }
+
+  if (!isNationwide && incomingCodes.length === 0) {
     throw new Error("INVALID_INPUT: At least one psgcCodes array is required.");
   }
 
@@ -29,80 +23,44 @@ export const createBenefit = async (data: any, user: any) => {
     throw new Error("INVALID_INPUT: National users must assign at least one group.");
   }
 
-  const psgcPayloads = [];
-  const locationNameMap = new Map<string, string>();
+  return { isNationwide, incomingCodes };
+};
 
-  // 3. Loop through codes: Validate, Authorize, and Prepare Payloads
-  for (const code of incomingCodes) {
-    const location = await getPsgcLocation(code);
-    if (!location)
-      throw new Error(`INVALID_PSGC_CODE: Location ${code} not found.`);
+const enrichBenefitPsgcCodes = <T extends { benefitPsgcCodes: { psgcCode: string }[] }>(
+  benefit: T,
+  locationNameMap: Map<string, string>,
+) => ({
+  ...benefit,
+  benefitPsgcCodes: benefit.benefitPsgcCodes.map((pc) => ({
+    ...pc,
+    locationName: locationNameMap.get(pc.psgcCode),
+  })),
+});
 
-    // Store the location name for the enriched response
-    locationNameMap.set(code, location.name);
+export const createBenefit = async (data: any, user: any) => {
+  const { isNationwide, incomingCodes } = validateBenefitInput(data, user);
 
-    // Determine the correct target Scope ID for THIS specific location
-    const scopeValue = getScopeValueForLocation(location);
-    const targetScopeId = scopeMap.get(scopeValue);
+  // Skipped entirely for nationwide benefits — no location rows needed.
+  const resolvedCodes = isNationwide
+    ? []
+    : await resolvePsgcCodesForUser(incomingCodes, user);
 
-    if (!targetScopeId)
-      throw new Error(`SCOPE_NOT_FOUND: No scope defined for ${scopeValue}`);
+  const locationNameMap = new Map(
+    resolvedCodes.map((r) => [r.psgcCode, r.locationName]),
+  );
 
-    // Authorization Logic (Existing Hierarchy Check)
-    let isAuthorized = user.scope?.value === "NATIONAL";
+  const psgcPayloads = resolvedCodes.map((r) => ({
+    psgcCode: r.psgcCode,
+    scopeId: r.scopeId,
+    createdById: user.id,
+  }));
 
-    if (!isAuthorized) {
-      switch (user.scope?.value) {
-        case "REGIONS":
-          isAuthorized =
-            location.regionCode === user.psgcCode ||
-            location.code === user.psgcCode;
-          break;
-        case "PROVINCES":
-          isAuthorized =
-            location.provinceCode === user.psgcCode ||
-            location.code === user.psgcCode;
-          break;
-        case "DISTRICTS":
-          isAuthorized =
-            location.districtCode === user.psgcCode ||
-            location.code === user.psgcCode;
-          break;
-        case "CITIES-MUNICIPALITIES":
-          isAuthorized =
-            location.code === user.psgcCode ||
-            location.cityCode === user.psgcCode ||
-            location.municipalityCode === user.psgcCode;
-          break;
-        case "BARANGAYS":
-          isAuthorized = location.code === user.psgcCode;
-          break;
-        default:
-          throw new Error(
-            "UNAUTHORIZED_SCOPE: User scope configuration invalid.",
-          );
-      }
-    }
-
-    if (!isAuthorized)
-      throw new Error(
-        `FORBIDDEN: You do not have permission for location ${code}.`,
-      );
-
-    // Prepare payload for DimBenefitPsgcCode
-    psgcPayloads.push({
-      psgcCode: code,
-      scopeId: targetScopeId, // The actual level of the location
-      createdById: user.id,
-    });
-  }
-
-  // 4. Create the Benefit and all relations in one transaction
   const newBenefit = await prisma.fctBenefit.create({
     data: {
       name: data.name,
       englishDescription: data.englishDescription,
       tagalogDescription: data.tagalogDescription,
+      isNationwide,
       scopeId: user.scopeId, // The "owner" scope of the benefit itself
       createdById: user.id,
 
@@ -121,12 +79,125 @@ export const createBenefit = async (data: any, user: any) => {
     },
   });
 
-  // 5. Enrich the response with location names
-  return {
-    ...newBenefit,
-    benefitPsgcCodes: newBenefit.benefitPsgcCodes.map((pc) => ({
-      ...pc,
-      locationName: locationNameMap.get(pc.psgcCode), // Injecting name for readability
-    })),
-  };
+  return enrichBenefitPsgcCodes(newBenefit, locationNameMap);
+};
+
+export const editBenefit = async (id: string, data: any, user: any) => {
+  const existing = await prisma.fctBenefit.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      benefitPsgcCodes: { where: { deletedAt: null } },
+    },
+  });
+  if (!existing) throw new Error("BENEFIT_NOT_FOUND");
+
+  const scopeMap = await getScopeIdMap();
+  await assertUserAuthorizedForBenefit(existing, user, scopeMap);
+
+  const { isNationwide, incomingCodes } = validateBenefitInput(data, user);
+
+  const resolvedCodes = isNationwide
+    ? []
+    : await resolvePsgcCodesForUser(incomingCodes, user);
+
+  const locationNameMap = new Map(
+    resolvedCodes.map((r) => [r.psgcCode, r.locationName]),
+  );
+
+  const desiredGroupIds: string[] = data.groupIds || [];
+  const desiredPsgcCodes = new Set(resolvedCodes.map((r) => r.psgcCode));
+
+  const updatedBenefit = await prisma.$transaction(async (tx) => {
+    // Soft-delete active rows that are no longer part of the desired set.
+    await tx.dimBenefitPsgcCode.updateMany({
+      where: {
+        benefitId: id,
+        deletedAt: null,
+        psgcCode: { notIn: [...desiredPsgcCodes] },
+      },
+      data: { deletedAt: new Date(), updatedById: user.id },
+    });
+
+    await tx.dimBenefitGroup.updateMany({
+      where: {
+        benefitId: id,
+        deletedAt: null,
+        groupId: { notIn: desiredGroupIds },
+      },
+      data: { deletedAt: new Date(), updatedById: user.id },
+    });
+
+    // Upsert every desired row: revives a previously soft-deleted row with
+    // the same key (unique constraint means it can't just be re-created),
+    // or creates it fresh if it never existed.
+    for (const r of resolvedCodes) {
+      await tx.dimBenefitPsgcCode.upsert({
+        where: { benefitId_psgcCode: { benefitId: id, psgcCode: r.psgcCode } },
+        update: { scopeId: r.scopeId, deletedAt: null, updatedById: user.id },
+        create: {
+          benefitId: id,
+          psgcCode: r.psgcCode,
+          scopeId: r.scopeId,
+          createdById: user.id,
+        },
+      });
+    }
+
+    for (const groupId of desiredGroupIds) {
+      await tx.dimBenefitGroup.upsert({
+        where: { benefitId_groupId: { benefitId: id, groupId } },
+        update: { deletedAt: null, updatedById: user.id },
+        create: { benefitId: id, groupId, createdById: user.id },
+      });
+    }
+
+    return tx.fctBenefit.update({
+      where: { id },
+      data: {
+        name: data.name,
+        englishDescription: data.englishDescription,
+        tagalogDescription: data.tagalogDescription,
+        isNationwide,
+        updatedById: user.id,
+      },
+      include: {
+        benefitPsgcCodes: { where: { deletedAt: null }, include: { scope: true } },
+        benefitGroups: { where: { deletedAt: null }, include: { group: true } },
+      },
+    });
+  });
+
+  return enrichBenefitPsgcCodes(updatedBenefit, locationNameMap);
+};
+
+export const deleteBenefit = async (id: string, user: any) => {
+  const existing = await prisma.fctBenefit.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      benefitPsgcCodes: { where: { deletedAt: null } },
+    },
+  });
+  if (!existing) throw new Error("BENEFIT_NOT_FOUND");
+
+  const scopeMap = await getScopeIdMap();
+  await assertUserAuthorizedForBenefit(existing, user, scopeMap);
+
+  const deletedAt = new Date();
+
+  await prisma.$transaction([
+    prisma.fctBenefit.update({
+      where: { id },
+      data: { deletedAt, updatedById: user.id },
+    }),
+    prisma.dimBenefitPsgcCode.updateMany({
+      where: { benefitId: id, deletedAt: null },
+      data: { deletedAt, updatedById: user.id },
+    }),
+    prisma.dimBenefitGroup.updateMany({
+      where: { benefitId: id, deletedAt: null },
+      data: { deletedAt, updatedById: user.id },
+    }),
+  ]);
+
+  return { id, deletedAt };
 };

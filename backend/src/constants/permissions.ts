@@ -8,6 +8,8 @@ export const PERMISSIONS = {
 
   // Superadmin and Agent
   CREATE_BENEFITS: [UserRole.SUPERADMIN, UserRole.AGENT],
+  EDIT_BENEFITS: [UserRole.SUPERADMIN, UserRole.AGENT],
+  DELETE_BENEFITS: [UserRole.SUPERADMIN, UserRole.AGENT],
 
   // Everyone (User, Agent, Superadmin)
   PARTICIPATE: [UserRole.SUPERADMIN, UserRole.AGENT, UserRole.USER],
