@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:4000`. Start server: `npm run dev`.
 
-Every request below is a `curl` snippet you can paste directly. Response bodies noted are Shape B: `{ success, message, error, errorCode, data }` unless stated otherwise (fields/groups have bespoke shapes).
+Every request below is a `curl` snippet you can paste directly. Every response is the same envelope shape: `{ success, message, error, errorCode, data }`. Fields/groups/users controllers write their own `message`/`errorCode` strings per action (e.g. `GROUP_NOT_FOUND`, generic `SERVER_ERROR` fallback) rather than reusing the benefits' shared prefix-mapping helper — the envelope itself is identical everywhere.
 
 ## Seeded users
 
