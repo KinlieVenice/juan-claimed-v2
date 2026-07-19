@@ -1,39 +1,45 @@
 import { Router } from "express";
-import {
-  listBenefitAttachments,
-  createBenefitAttachment,
-  editBenefitAttachment,
-  deleteBenefitAttachment,
-} from "../controllers/benefitAttachment.controller.js";
+import { makeAttachmentControllers } from "../controllers/benefitAttachment.controller.js";
 import { mockAuth } from "../middlewares/mockAuth.middleware.js";
 import { requireRole } from "../middlewares/role.middleware.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
 import { benefitAttachmentSchema } from "../requests/benefitAttachment.request.js";
 import { PERMISSIONS } from "../constants/permissions.js";
+import type { AttachmentParentType } from "../constants/attachmentEntityTypes.js";
 
-export const benefitAttachmentRouter = Router({ mergeParams: true });
+/**
+ * Mounted inside benefitRequirement.routes.ts and benefitUtilization.routes.ts
+ * at "/:id/attachments" (mergeParams gives access to :benefitId and the
+ * parent's own :id) — one implementation shared by both parent types.
+ */
+export const createAttachmentRouter = (parentType: AttachmentParentType) => {
+  const router = Router({ mergeParams: true });
+  const controllers = makeAttachmentControllers(parentType);
 
-benefitAttachmentRouter.get("/", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), listBenefitAttachments);
+  router.get("/", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), controllers.list);
 
-benefitAttachmentRouter.post(
-  "/",
-  mockAuth,
-  requireRole(PERMISSIONS.CREATE_BENEFIT_ATTACHMENTS),
-  validateBody(benefitAttachmentSchema),
-  createBenefitAttachment,
-);
+  router.post(
+    "/",
+    mockAuth,
+    requireRole(PERMISSIONS.CREATE_BENEFIT_ATTACHMENTS),
+    validateBody(benefitAttachmentSchema),
+    controllers.create,
+  );
 
-benefitAttachmentRouter.patch(
-  "/:id",
-  mockAuth,
-  requireRole(PERMISSIONS.EDIT_BENEFIT_ATTACHMENTS),
-  validateBody(benefitAttachmentSchema),
-  editBenefitAttachment,
-);
+  router.patch(
+    "/:attachmentId",
+    mockAuth,
+    requireRole(PERMISSIONS.EDIT_BENEFIT_ATTACHMENTS),
+    validateBody(benefitAttachmentSchema),
+    controllers.edit,
+  );
 
-benefitAttachmentRouter.delete(
-  "/:id",
-  mockAuth,
-  requireRole(PERMISSIONS.DELETE_BENEFIT_ATTACHMENTS),
-  deleteBenefitAttachment,
-);
+  router.delete(
+    "/:attachmentId",
+    mockAuth,
+    requireRole(PERMISSIONS.DELETE_BENEFIT_ATTACHMENTS),
+    controllers.remove,
+  );
+
+  return router;
+};

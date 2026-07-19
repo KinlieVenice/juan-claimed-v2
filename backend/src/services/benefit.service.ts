@@ -5,6 +5,26 @@ import {
 } from "./benefitLocation.service.js";
 import { getPsgcLocation } from "./psgc.service.js";
 
+/**
+ * Resolves the actual set of groups a benefit should be linked to, plus
+ * which one is marked `creator: true`:
+ * - If the acting user has their own groupId (a NATIONAL-scope agent always
+ *   does), it's auto-included and marked as the creator group — they don't
+ *   need to repeat it in the request body, only add extra collaborators.
+ * - SUPERADMIN has no groupId of their own in this model, so they must
+ *   supply at least one group via the request body; none is auto-marked
+ *   creator since there's no "own" group to anchor it to.
+ */
+const resolveGroupPlan = (user: any, requestedGroupIds: string[]) => {
+  const ownGroupId: string | null =
+    user.scope?.value === "NATIONAL" ? user.groupId ?? null : null;
+  const groupIds = ownGroupId
+    ? [...new Set([ownGroupId, ...requestedGroupIds])]
+    : requestedGroupIds;
+
+  return { groupIds, creatorGroupId: ownGroupId };
+};
+
 const validateBenefitInput = (data: any, user: any) => {
   const isNationwide = data.nationwide === true;
   const incomingCodes: string[] = data.psgcCodes || [];
@@ -21,11 +41,13 @@ const validateBenefitInput = (data: any, user: any) => {
     throw new Error("INVALID_INPUT: At least one psgcCodes array is required.");
   }
 
-  if (isNationalLevel && (data.groupIds || []).length === 0) {
+  const { groupIds, creatorGroupId } = resolveGroupPlan(user, data.groupIds || []);
+
+  if (isNationalLevel && groupIds.length === 0) {
     throw new Error("INVALID_INPUT: National users must assign at least one group.");
   }
 
-  return { isNationwide, incomingCodes };
+  return { isNationwide, incomingCodes, groupIds, creatorGroupId };
 };
 
 const enrichBenefitPsgcCodes = <T extends { benefitPsgcCodes: { psgcCode: string }[] }>(
@@ -75,7 +97,7 @@ export const getBenefitById = async (id: string) => {
 };
 
 export const createBenefit = async (data: any, user: any) => {
-  const { isNationwide, incomingCodes } = validateBenefitInput(data, user);
+  const { isNationwide, incomingCodes, groupIds, creatorGroupId } = validateBenefitInput(data, user);
 
   // Skipped entirely for nationwide benefits — no location rows needed.
   const resolvedCodes = isNationwide
@@ -104,8 +126,9 @@ export const createBenefit = async (data: any, user: any) => {
       benefitPsgcCodes: { create: psgcPayloads },
 
       benefitGroups: {
-        create: (data.groupIds || []).map((gId: string) => ({
+        create: groupIds.map((gId: string) => ({
           groupId: gId,
+          creator: gId === creatorGroupId,
           createdById: user.id,
         })),
       },
@@ -122,7 +145,8 @@ export const createBenefit = async (data: any, user: any) => {
 export const editBenefit = async (id: string, data: any, user: any) => {
   await assertUserCanModifyBenefit(id, user);
 
-  const { isNationwide, incomingCodes } = validateBenefitInput(data, user);
+  const { isNationwide, incomingCodes, groupIds: desiredGroupIds, creatorGroupId } =
+    validateBenefitInput(data, user);
 
   const resolvedCodes = isNationwide
     ? []
@@ -132,7 +156,6 @@ export const editBenefit = async (id: string, data: any, user: any) => {
     resolvedCodes.map((r) => [r.psgcCode, r.locationName]),
   );
 
-  const desiredGroupIds: string[] = data.groupIds || [];
   const desiredPsgcCodes = new Set(resolvedCodes.map((r) => r.psgcCode));
 
   const updatedBenefit = await prisma.$transaction(async (tx) => {
@@ -172,10 +195,11 @@ export const editBenefit = async (id: string, data: any, user: any) => {
     }
 
     for (const groupId of desiredGroupIds) {
+      const creator = groupId === creatorGroupId;
       await tx.dimBenefitGroup.upsert({
         where: { benefitId_groupId: { benefitId: id, groupId } },
-        update: { deletedAt: null, updatedById: user.id },
-        create: { benefitId: id, groupId, createdById: user.id },
+        update: { creator, deletedAt: null, updatedById: user.id },
+        create: { benefitId: id, groupId, creator, createdById: user.id },
       });
     }
 

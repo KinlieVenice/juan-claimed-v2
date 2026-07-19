@@ -10,6 +10,7 @@ import { requireRole } from "../middlewares/role.middleware.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
 import { benefitUtilizationSchema } from "../requests/benefitUtilization.request.js";
 import { PERMISSIONS } from "../constants/permissions.js";
+import { createAttachmentRouter } from "./benefitAttachment.routes.js";
 
 export const benefitUtilizationRouter = Router({ mergeParams: true });
 
@@ -37,3 +38,5 @@ benefitUtilizationRouter.delete(
   requireRole(PERMISSIONS.DELETE_BENEFIT_UTILIZATIONS),
   deleteBenefitUtilization,
 );
+
+benefitUtilizationRouter.use("/:id/attachments", createAttachmentRouter("UTILIZATION"));

@@ -28,20 +28,6 @@ export async function seedUsersAndRoles() {
   );
 
   console.log("Seeding System Groups...");
-  let superadminGroup = await prisma.dimGroup.findFirst({
-    where: { englishName: "Superadmin Group" },
-  });
-
-  if (!superadminGroup) {
-    superadminGroup = await prisma.dimGroup.create({
-      data: {
-        englishName: "Superadmin Group",
-        tagalogName: "Superadmin Grupo",
-        englishDescription: "Group for system super administrators",
-        tagalogDescription: "Grupo para sa mga super administrator ng sistema",
-      },
-    });
-  }
 
   let dohGroup = await prisma.dimGroup.findFirst({
     where: { englishName: "Department of Health" },
@@ -62,10 +48,10 @@ export async function seedUsersAndRoles() {
 
   console.log("Seeding Users according to role constraints...");
 
-  // A. Superadmin Account (Scope: Superadmin, Group: Superadmin, PsgcCode: Superadmin)
+  // A. Superadmin Account (Scope: Superadmin, Group: NULL, PsgcCode: Superadmin)
   await prisma.dimUser.upsert({
     where: { email: "superadmin@juanclaimed.com" },
-    update: {},
+    update: { groupId: null },
     create: {
       username: "superadmin_main",
       email: "superadmin@juanclaimed.com",
@@ -73,7 +59,7 @@ export async function seedUsersAndRoles() {
       lastName: "Administrator",
       role: UserRole.SUPERADMIN,
       scopeId: createdScopes["SUPERADMIN"],
-      groupId: superadminGroup.id,
+      groupId: null,
       psgcCode: "SUPERADMIN",
     },
   });

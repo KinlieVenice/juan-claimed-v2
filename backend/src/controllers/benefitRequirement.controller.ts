@@ -5,17 +5,23 @@ import {
   editRequirement,
   deleteRequirement,
 } from "../services/benefitRequirement.service.js";
-import { handleApiError } from "../utils/errorMapping.js";
+import { handleApiError } from "../utils/errorMapping.util.js";
+import { sendSuccess, sendUnauthorized } from "../utils/apiResponse.util.js";
 
 export const listBenefitRequirements = async (
   req: Request<{ benefitId: string }>,
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
     const requirements = await listRequirements(req.params.benefitId, req.user);
-    res.status(200).json({ success: true, data: requirements });
+    return sendSuccess(
+      res,
+      200,
+      "Requirements loaded successfully.",
+      requirements,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -26,10 +32,19 @@ export const createBenefitRequirement = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
-    const requirement = await createRequirement(req.params.benefitId, req.body, req.user);
-    res.status(201).json({ success: true, data: requirement });
+    const requirement = await createRequirement(
+      req.params.benefitId,
+      req.body,
+      req.user,
+    );
+    return sendSuccess(
+      res,
+      201,
+      "Requirement created successfully.",
+      requirement,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -40,7 +55,7 @@ export const editBenefitRequirement = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
     const requirement = await editRequirement(
       req.params.benefitId,
@@ -48,7 +63,12 @@ export const editBenefitRequirement = async (
       req.body,
       req.user,
     );
-    res.status(200).json({ success: true, data: requirement });
+    return sendSuccess(
+      res,
+      200,
+      "Requirement updated successfully.",
+      requirement,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -59,10 +79,14 @@ export const deleteBenefitRequirement = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
-    const result = await deleteRequirement(req.params.benefitId, req.params.id, req.user);
-    res.status(200).json({ success: true, data: result });
+    const result = await deleteRequirement(
+      req.params.benefitId,
+      req.params.id,
+      req.user,
+    );
+    return sendSuccess(res, 200, "Requirement deleted successfully.", result);
   } catch (error: any) {
     handleApiError(error, res);
   }

@@ -6,31 +6,36 @@ import {
   editBenefit as editBenefitService,
   deleteBenefit as deleteBenefitService,
 } from "../services/benefit.service.js";
-import { handleApiError } from "../utils/errorMapping.js";
+import { handleApiError } from "../utils/errorMapping.util.js";
+import { sendSuccess, sendUnauthorized } from "../utils/apiResponse.util.js";
 
 export const listBenefits = async (req: Request, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+    if (!req.user) return sendUnauthorized(res);
 
     const benefits = await listBenefitsService();
 
-    res.status(200).json({ success: true, data: benefits });
+    return sendSuccess(res, 200, "Benefits loaded successfully.", benefits);
   } catch (error: any) {
     handleApiError(error, res);
   }
 };
 
-export const getBenefitById = async (req: Request<{ id: string }>, res: Response) => {
+export const getBenefitById = async (
+  req: Request<{ id: string }>,
+  res: Response,
+) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+    if (!req.user) return sendUnauthorized(res);
 
     const benefit = await getBenefitByIdService(req.params.id);
 
-    res.status(200).json({ success: true, data: benefit });
+    return sendSuccess(
+      res,
+      200,
+      "Benefit details loaded successfully.",
+      benefit,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -38,41 +43,49 @@ export const getBenefitById = async (req: Request<{ id: string }>, res: Response
 
 export const createBenefit = async (req: Request, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+    if (!req.user) return sendUnauthorized(res);
 
     const benefit = await createBenefitService(req.body, req.user);
 
-    res.status(201).json({ success: true, data: benefit });
+    return sendSuccess(res, 201, "Benefit created successfully.", benefit);
   } catch (error: any) {
-    handleApiError(error, res, "This PSGC code is already linked to this benefit.");
+    handleApiError(
+      error,
+      res,
+      "This PSGC code is already linked to this benefit.",
+    );
   }
 };
 
-export const editBenefit = async (req: Request<{ id: string }>, res: Response) => {
+export const editBenefit = async (
+  req: Request<{ id: string }>,
+  res: Response,
+) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+    if (!req.user) return sendUnauthorized(res);
 
     const benefit = await editBenefitService(req.params.id, req.body, req.user);
 
-    res.status(200).json({ success: true, data: benefit });
+    return sendSuccess(res, 200, "Benefit updated successfully.", benefit);
   } catch (error: any) {
-    handleApiError(error, res, "This PSGC code is already linked to this benefit.");
+    handleApiError(
+      error,
+      res,
+      "This PSGC code is already linked to this benefit.",
+    );
   }
 };
 
-export const deleteBenefit = async (req: Request<{ id: string }>, res: Response) => {
+export const deleteBenefit = async (
+  req: Request<{ id: string }>,
+  res: Response,
+) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+    if (!req.user) return sendUnauthorized(res);
 
     const result = await deleteBenefitService(req.params.id, req.user);
 
-    res.status(200).json({ success: true, data: result });
+    return sendSuccess(res, 200, "Benefit deleted successfully.", result);
   } catch (error: any) {
     handleApiError(error, res);
   }

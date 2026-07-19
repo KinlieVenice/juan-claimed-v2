@@ -5,17 +5,23 @@ import {
   editUtilization,
   deleteUtilization,
 } from "../services/benefitUtilization.service.js";
-import { handleApiError } from "../utils/errorMapping.js";
+import { handleApiError } from "../utils/errorMapping.util.js";
+import { sendSuccess, sendUnauthorized } from "../utils/apiResponse.util.js";
 
 export const listBenefitUtilizations = async (
   req: Request<{ benefitId: string }>,
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
     const utilizations = await listUtilizations(req.params.benefitId, req.user);
-    res.status(200).json({ success: true, data: utilizations });
+    return sendSuccess(
+      res,
+      200,
+      "Utilizations loaded successfully.",
+      utilizations,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -26,10 +32,19 @@ export const createBenefitUtilization = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
-    const utilization = await createUtilization(req.params.benefitId, req.body, req.user);
-    res.status(201).json({ success: true, data: utilization });
+    const utilization = await createUtilization(
+      req.params.benefitId,
+      req.body,
+      req.user,
+    );
+    return sendSuccess(
+      res,
+      201,
+      "Utilization created successfully.",
+      utilization,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -40,7 +55,7 @@ export const editBenefitUtilization = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
     const utilization = await editUtilization(
       req.params.benefitId,
@@ -48,7 +63,12 @@ export const editBenefitUtilization = async (
       req.body,
       req.user,
     );
-    res.status(200).json({ success: true, data: utilization });
+    return sendSuccess(
+      res,
+      200,
+      "Utilization updated successfully.",
+      utilization,
+    );
   } catch (error: any) {
     handleApiError(error, res);
   }
@@ -59,10 +79,14 @@ export const deleteBenefitUtilization = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!req.user) return sendUnauthorized(res);
 
-    const result = await deleteUtilization(req.params.benefitId, req.params.id, req.user);
-    res.status(200).json({ success: true, data: result });
+    const result = await deleteUtilization(
+      req.params.benefitId,
+      req.params.id,
+      req.user,
+    );
+    return sendSuccess(res, 200, "Utilization deleted successfully.", result);
   } catch (error: any) {
     handleApiError(error, res);
   }

@@ -12,16 +12,16 @@ import { PERMISSIONS } from "../constants/permissions.js";
 
 export const groupRouter = Router();
 
+groupRouter.get("/", getAllGroups);
+groupRouter.get("/:id", getGroupById);
+
 groupRouter.post(
   "/",
   mockAuth,
   requireRole(PERMISSIONS.MANAGE_GROUPS),
+  validateBody(createUpdateGroupSchema),
   createGroup,
 );
-
-groupRouter.get("/", getAllGroups);
-groupRouter.get("/:id", getGroupById);
-groupRouter.post("/", validateBody(createUpdateGroupSchema), createGroup);
 
 // Note: If you added an update/delete function in your group controller later,
 // you can easily plug them in like this:

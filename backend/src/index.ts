@@ -8,6 +8,7 @@ import { fieldRouter } from "./routes/field.route.js";
 import { groupRouter } from "./routes/group.route.js";
 import { userRouter } from "./routes/user.route.js";
 import { benefitRouter } from "./routes/benefit.routes.js";
+import { scopeRouter } from "./routes/scope.routes.js";
 
 
 const app = express();
@@ -26,6 +27,7 @@ app.use("/api/fields", fieldRouter);
 app.use("/api/groups", groupRouter);
 app.use("/api/users", userRouter);
 app.use("/api/benefits", benefitRouter);
+app.use("/api/scopes", scopeRouter);
 
 
 app.use(errorHandler);

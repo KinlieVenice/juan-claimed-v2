@@ -1,26 +1,62 @@
 import { prisma } from "../utils/prisma.js";
 import { assertUserCanModifyBenefit } from "./benefitLocation.service.js";
-import { ATTACHMENT_ENTITY_TYPES } from "../constants/attachmentEntityTypes.js";
+import { ATTACHMENT_ENTITY_TYPES, type AttachmentParentType } from "../constants/attachmentEntityTypes.js";
 
-const entityWhere = (benefitId: string) => ({
-  entityType: ATTACHMENT_ENTITY_TYPES.BENEFIT,
-  entityId: benefitId,
-});
+const NOT_FOUND_CODE: Record<AttachmentParentType, string> = {
+  REQUIREMENT: "REQUIREMENT_NOT_FOUND",
+  UTILIZATION: "UTILIZATION_NOT_FOUND",
+};
 
-export const listAttachments = async (benefitId: string, user: any) => {
+const assertParentExists = async (
+  parentType: AttachmentParentType,
+  benefitId: string,
+  parentId: string,
+  user: any,
+) => {
   await assertUserCanModifyBenefit(benefitId, user);
 
+  const parent =
+    parentType === "REQUIREMENT"
+      ? await prisma.fctBenefitRequirement.findFirst({
+          where: { id: parentId, benefitId, deletedAt: null },
+        })
+      : await prisma.fctBenefitUtilization.findFirst({
+          where: { id: parentId, benefitId, deletedAt: null },
+        });
+
+  if (!parent) throw new Error(NOT_FOUND_CODE[parentType]);
+};
+
+const entityWhere = (parentType: AttachmentParentType, parentId: string) => ({
+  entityType: ATTACHMENT_ENTITY_TYPES[parentType],
+  entityId: parentId,
+});
+
+export const listParentAttachments = async (
+  parentType: AttachmentParentType,
+  benefitId: string,
+  parentId: string,
+  user: any,
+) => {
+  await assertParentExists(parentType, benefitId, parentId, user);
+
   return prisma.fctAttachment.findMany({
-    where: { ...entityWhere(benefitId), deletedAt: null },
+    where: { ...entityWhere(parentType, parentId), deletedAt: null },
   });
 };
 
-export const createAttachment = async (benefitId: string, data: any, user: any) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+export const createParentAttachment = async (
+  parentType: AttachmentParentType,
+  benefitId: string,
+  parentId: string,
+  data: any,
+  user: any,
+) => {
+  await assertParentExists(parentType, benefitId, parentId, user);
 
   return prisma.fctAttachment.create({
     data: {
-      ...entityWhere(benefitId),
+      ...entityWhere(parentType, parentId),
       fileLabel: data.fileLabel,
       fileName: data.fileName,
       fileType: data.fileType,
@@ -32,16 +68,18 @@ export const createAttachment = async (benefitId: string, data: any, user: any) 
   });
 };
 
-export const editAttachment = async (
+export const editParentAttachment = async (
+  parentType: AttachmentParentType,
   benefitId: string,
+  parentId: string,
   id: string,
   data: any,
   user: any,
 ) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+  await assertParentExists(parentType, benefitId, parentId, user);
 
   const existing = await prisma.fctAttachment.findFirst({
-    where: { id, ...entityWhere(benefitId), deletedAt: null },
+    where: { id, ...entityWhere(parentType, parentId), deletedAt: null },
   });
   if (!existing) throw new Error("ATTACHMENT_NOT_FOUND");
 
@@ -59,11 +97,17 @@ export const editAttachment = async (
   });
 };
 
-export const deleteAttachment = async (benefitId: string, id: string, user: any) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+export const deleteParentAttachment = async (
+  parentType: AttachmentParentType,
+  benefitId: string,
+  parentId: string,
+  id: string,
+  user: any,
+) => {
+  await assertParentExists(parentType, benefitId, parentId, user);
 
   const existing = await prisma.fctAttachment.findFirst({
-    where: { id, ...entityWhere(benefitId), deletedAt: null },
+    where: { id, ...entityWhere(parentType, parentId), deletedAt: null },
   });
   if (!existing) throw new Error("ATTACHMENT_NOT_FOUND");
 

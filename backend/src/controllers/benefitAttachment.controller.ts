@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import {
-  listAttachments,
-  createAttachment,
-  editAttachment,
-  deleteAttachment,
+  listParentAttachments,
+  createParentAttachment,
+  editParentAttachment,
+  deleteParentAttachment,
 } from "../services/benefitAttachment.service.js";
-import { handleApiError } from "../utils/errorMapping.js";
+import { handleApiError } from "../utils/errorMapping.util.js";
+import { sendSuccess, sendUnauthorized } from "../utils/apiResponse.util.js";
+import type { AttachmentParentType } from "../constants/attachmentEntityTypes.js";
 
 // fileSize is BigInt in the schema — JSON.stringify throws on BigInt, so it
 // must be stringified before every response.
@@ -14,63 +16,99 @@ const serializeAttachment = (attachment: any) => ({
   fileSize: attachment.fileSize?.toString(),
 });
 
-export const listBenefitAttachments = async (
-  req: Request<{ benefitId: string }>,
-  res: Response,
-) => {
-  try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+type Params = { benefitId: string; id: string; attachmentId: string };
 
-    const attachments = await listAttachments(req.params.benefitId, req.user);
-    res.status(200).json({ success: true, data: attachments.map(serializeAttachment) });
-  } catch (error: any) {
-    handleApiError(error, res);
-  }
-};
+/**
+ * Attachments hang off a requirement or utilization (per schema design),
+ * never the benefit directly. This factory produces the 4 CRUD handlers
+ * for whichever parent type the mounting route needs, so requirement- and
+ * utilization-attachments share one implementation instead of two copies.
+ */
+export const makeAttachmentControllers = (
+  parentType: AttachmentParentType,
+) => ({
+  list: async (
+    req: Request<Pick<Params, "benefitId" | "id">>,
+    res: Response,
+  ) => {
+    try {
+      if (!req.user) return sendUnauthorized(res);
+      const attachments = await listParentAttachments(
+        parentType,
+        req.params.benefitId,
+        req.params.id,
+        req.user,
+      );
+      return sendSuccess(
+        res,
+        200,
+        "Attachments loaded successfully.",
+        attachments.map(serializeAttachment),
+      );
+    } catch (error: any) {
+      handleApiError(error, res);
+    }
+  },
 
-export const createBenefitAttachment = async (
-  req: Request<{ benefitId: string }>,
-  res: Response,
-) => {
-  try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+  create: async (
+    req: Request<Pick<Params, "benefitId" | "id">>,
+    res: Response,
+  ) => {
+    try {
+      if (!req.user) return sendUnauthorized(res);
+      const attachment = await createParentAttachment(
+        parentType,
+        req.params.benefitId,
+        req.params.id,
+        req.body,
+        req.user,
+      );
+      return sendSuccess(
+        res,
+        201,
+        "Attachment created successfully.",
+        serializeAttachment(attachment),
+      );
+    } catch (error: any) {
+      handleApiError(error, res);
+    }
+  },
 
-    const attachment = await createAttachment(req.params.benefitId, req.body, req.user);
-    res.status(201).json({ success: true, data: serializeAttachment(attachment) });
-  } catch (error: any) {
-    handleApiError(error, res);
-  }
-};
+  edit: async (req: Request<Params>, res: Response) => {
+    try {
+      if (!req.user) return sendUnauthorized(res);
+      const attachment = await editParentAttachment(
+        parentType,
+        req.params.benefitId,
+        req.params.id,
+        req.params.attachmentId,
+        req.body,
+        req.user,
+      );
+      return sendSuccess(
+        res,
+        200,
+        "Attachment updated successfully.",
+        serializeAttachment(attachment),
+      );
+    } catch (error: any) {
+      handleApiError(error, res);
+    }
+  },
 
-export const editBenefitAttachment = async (
-  req: Request<{ benefitId: string; id: string }>,
-  res: Response,
-) => {
-  try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
-
-    const attachment = await editAttachment(
-      req.params.benefitId,
-      req.params.id,
-      req.body,
-      req.user,
-    );
-    res.status(200).json({ success: true, data: serializeAttachment(attachment) });
-  } catch (error: any) {
-    handleApiError(error, res);
-  }
-};
-
-export const deleteBenefitAttachment = async (
-  req: Request<{ benefitId: string; id: string }>,
-  res: Response,
-) => {
-  try {
-    if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
-
-    const result = await deleteAttachment(req.params.benefitId, req.params.id, req.user);
-    res.status(200).json({ success: true, data: result });
-  } catch (error: any) {
-    handleApiError(error, res);
-  }
-};
+  remove: async (req: Request<Params>, res: Response) => {
+    try {
+      if (!req.user) return sendUnauthorized(res);
+      const result = await deleteParentAttachment(
+        parentType,
+        req.params.benefitId,
+        req.params.id,
+        req.params.attachmentId,
+        req.user,
+      );
+      return sendSuccess(res, 200, "Attachment deleted successfully.", result);
+    } catch (error: any) {
+      handleApiError(error, res);
+    }
+  },
+});
