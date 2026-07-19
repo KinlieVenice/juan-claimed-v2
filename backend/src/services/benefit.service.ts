@@ -1,9 +1,12 @@
-import { prisma } from "../utils/prisma.js";
+import { prisma, Prisma } from "../utils/prisma.js";
 import {
   assertUserCanModifyBenefit,
   resolvePsgcCodesForUser,
 } from "./benefitLocation.service.js";
 import { getPsgcLocation } from "./psgc.service.js";
+
+// See benefitLocation.service.ts — same optional-transaction-client pattern.
+type Db = typeof prisma | Prisma.TransactionClient;
 
 /**
  * Resolves the actual set of groups a benefit should be linked to, plus
@@ -96,13 +99,13 @@ export const getBenefitById = async (id: string) => {
   return enrichBenefitPsgcCodes(benefit, locationNameMap);
 };
 
-export const createBenefit = async (data: any, user: any) => {
+export const createBenefit = async (data: any, user: any, db: Db = prisma) => {
   const { isNationwide, incomingCodes, groupIds, creatorGroupId } = validateBenefitInput(data, user);
 
   // Skipped entirely for nationwide benefits — no location rows needed.
   const resolvedCodes = isNationwide
     ? []
-    : await resolvePsgcCodesForUser(incomingCodes, user);
+    : await resolvePsgcCodesForUser(incomingCodes, user, db);
 
   const locationNameMap = new Map(
     resolvedCodes.map((r) => [r.psgcCode, r.locationName]),
@@ -114,7 +117,7 @@ export const createBenefit = async (data: any, user: any) => {
     createdById: user.id,
   }));
 
-  const newBenefit = await prisma.fctBenefit.create({
+  const newBenefit = await db.fctBenefit.create({
     data: {
       name: data.name,
       englishDescription: data.englishDescription,
@@ -142,15 +145,25 @@ export const createBenefit = async (data: any, user: any) => {
   return enrichBenefitPsgcCodes(newBenefit, locationNameMap);
 };
 
-export const editBenefit = async (id: string, data: any, user: any) => {
-  await assertUserCanModifyBenefit(id, user);
-
+/**
+ * Holds the actual read/write logic so it can run either inside a
+ * caller-supplied transaction (bundle edit flow) or inside a fresh one
+ * `editBenefit` opens itself — Prisma's interactive transactions can't be
+ * nested, so whichever `db` is already a `tx` client must be reused as-is
+ * rather than wrapped in a second `$transaction`.
+ */
+const runEditBenefit = async (
+  id: string,
+  data: any,
+  user: any,
+  db: Db,
+) => {
   const { isNationwide, incomingCodes, groupIds: desiredGroupIds, creatorGroupId } =
     validateBenefitInput(data, user);
 
   const resolvedCodes = isNationwide
     ? []
-    : await resolvePsgcCodesForUser(incomingCodes, user);
+    : await resolvePsgcCodesForUser(incomingCodes, user, db);
 
   const locationNameMap = new Map(
     resolvedCodes.map((r) => [r.psgcCode, r.locationName]),
@@ -158,7 +171,7 @@ export const editBenefit = async (id: string, data: any, user: any) => {
 
   const desiredPsgcCodes = new Set(resolvedCodes.map((r) => r.psgcCode));
 
-  const updatedBenefit = await prisma.$transaction(async (tx) => {
+  const run = async (tx: Db) => {
     // Soft-delete active rows that are no longer part of the desired set.
     await tx.dimBenefitPsgcCode.updateMany({
       where: {
@@ -217,9 +230,20 @@ export const editBenefit = async (id: string, data: any, user: any) => {
         benefitGroups: { where: { deletedAt: null }, include: { group: true } },
       },
     });
-  });
+  };
+
+  // `db` is already a `tx` client when called from within another
+  // `$transaction` (e.g. the bundle edit flow) — no `$transaction` method
+  // on it in that case, so run the block directly instead of nesting.
+  const updatedBenefit =
+    "$transaction" in db ? await db.$transaction(run) : await run(db);
 
   return enrichBenefitPsgcCodes(updatedBenefit, locationNameMap);
+};
+
+export const editBenefit = async (id: string, data: any, user: any, db: Db = prisma) => {
+  await assertUserCanModifyBenefit(id, user, db);
+  return runEditBenefit(id, data, user, db);
 };
 
 export const deleteBenefit = async (id: string, user: any) => {

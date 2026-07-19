@@ -1,6 +1,9 @@
-import { prisma } from "../utils/prisma.js";
+import { prisma, Prisma } from "../utils/prisma.js";
 import { assertUserCanModifyBenefit } from "./benefitLocation.service.js";
 import { ATTACHMENT_ENTITY_TYPES, type AttachmentParentType } from "../constants/attachmentEntityTypes.js";
+
+// See benefitLocation.service.ts — same optional-transaction-client pattern.
+type Db = typeof prisma | Prisma.TransactionClient;
 
 const NOT_FOUND_CODE: Record<AttachmentParentType, string> = {
   REQUIREMENT: "REQUIREMENT_NOT_FOUND",
@@ -12,15 +15,16 @@ const assertParentExists = async (
   benefitId: string,
   parentId: string,
   user: any,
+  db: Db = prisma,
 ) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+  await assertUserCanModifyBenefit(benefitId, user, db);
 
   const parent =
     parentType === "REQUIREMENT"
-      ? await prisma.fctBenefitRequirement.findFirst({
+      ? await db.fctBenefitRequirement.findFirst({
           where: { id: parentId, benefitId, deletedAt: null },
         })
-      : await prisma.fctBenefitUtilization.findFirst({
+      : await db.fctBenefitUtilization.findFirst({
           where: { id: parentId, benefitId, deletedAt: null },
         });
 
@@ -51,10 +55,11 @@ export const createParentAttachment = async (
   parentId: string,
   data: any,
   user: any,
+  db: Db = prisma,
 ) => {
-  await assertParentExists(parentType, benefitId, parentId, user);
+  await assertParentExists(parentType, benefitId, parentId, user, db);
 
-  return prisma.fctAttachment.create({
+  return db.fctAttachment.create({
     data: {
       ...entityWhere(parentType, parentId),
       fileLabel: data.fileLabel,
@@ -75,15 +80,16 @@ export const editParentAttachment = async (
   id: string,
   data: any,
   user: any,
+  db: Db = prisma,
 ) => {
-  await assertParentExists(parentType, benefitId, parentId, user);
+  await assertParentExists(parentType, benefitId, parentId, user, db);
 
-  const existing = await prisma.fctAttachment.findFirst({
+  const existing = await db.fctAttachment.findFirst({
     where: { id, ...entityWhere(parentType, parentId), deletedAt: null },
   });
   if (!existing) throw new Error("ATTACHMENT_NOT_FOUND");
 
-  return prisma.fctAttachment.update({
+  return db.fctAttachment.update({
     where: { id },
     data: {
       fileLabel: data.fileLabel,

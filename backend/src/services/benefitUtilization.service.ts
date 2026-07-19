@@ -1,5 +1,8 @@
-import { prisma } from "../utils/prisma.js";
+import { prisma, Prisma } from "../utils/prisma.js";
 import { assertUserCanModifyBenefit } from "./benefitLocation.service.js";
+
+// See benefitLocation.service.ts — same optional-transaction-client pattern.
+type Db = typeof prisma | Prisma.TransactionClient;
 
 export const listUtilizations = async (benefitId: string, user: any) => {
   await assertUserCanModifyBenefit(benefitId, user);
@@ -9,10 +12,15 @@ export const listUtilizations = async (benefitId: string, user: any) => {
   });
 };
 
-export const createUtilization = async (benefitId: string, data: any, user: any) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+export const createUtilization = async (
+  benefitId: string,
+  data: any,
+  user: any,
+  db: Db = prisma,
+) => {
+  await assertUserCanModifyBenefit(benefitId, user, db);
 
-  return prisma.fctBenefitUtilization.create({
+  return db.fctBenefitUtilization.create({
     data: {
       benefitId,
       englishName: data.englishName,
@@ -29,15 +37,16 @@ export const editUtilization = async (
   id: string,
   data: any,
   user: any,
+  db: Db = prisma,
 ) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+  await assertUserCanModifyBenefit(benefitId, user, db);
 
-  const existing = await prisma.fctBenefitUtilization.findFirst({
+  const existing = await db.fctBenefitUtilization.findFirst({
     where: { id, benefitId, deletedAt: null },
   });
   if (!existing) throw new Error("UTILIZATION_NOT_FOUND");
 
-  return prisma.fctBenefitUtilization.update({
+  return db.fctBenefitUtilization.update({
     where: { id },
     data: {
       englishName: data.englishName,

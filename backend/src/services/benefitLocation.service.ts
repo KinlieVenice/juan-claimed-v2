@@ -1,5 +1,11 @@
-import { prisma } from "../utils/prisma.js";
+import { prisma, Prisma } from "../utils/prisma.js";
 import { getPsgcLocation } from "./psgc.service.js";
+
+// Lets callers pass a `$transaction` callback client instead of the global
+// `prisma` singleton, so this DB work can be folded into a caller's
+// transaction (e.g. benefitBundle.service.ts). Defaults to `prisma` so every
+// existing call site is unaffected.
+type Db = typeof prisma | Prisma.TransactionClient;
 
 /**
  * The DimScope value for a PSGC location is whichever endpoint resolved it
@@ -43,8 +49,8 @@ export const isUserAuthorizedForLocation = (user: any, location: any): boolean =
   }
 };
 
-export const getScopeIdMap = async (): Promise<Map<string, string>> => {
-  const allScopes = await prisma.dimScope.findMany();
+export const getScopeIdMap = async (db: Db = prisma): Promise<Map<string, string>> => {
+  const allScopes = await db.dimScope.findMany();
   return new Map(allScopes.map((s) => [s.value, s.id]));
 };
 
@@ -91,8 +97,9 @@ export const resolvePsgcCodeForUser = async (
 export const resolvePsgcCodesForUser = async (
   codes: string[],
   user: any,
+  db: Db = prisma,
 ): Promise<ResolvedPsgcCode[]> => {
-  const scopeMap = await getScopeIdMap();
+  const scopeMap = await getScopeIdMap(db);
   const resolved: ResolvedPsgcCode[] = [];
   for (const code of codes) {
     resolved.push(await resolvePsgcCodeForUser(code, user, scopeMap));
@@ -132,8 +139,12 @@ export const assertUserAuthorizedForBenefit = async (
  * effectively modifying the benefit. Throws BENEFIT_NOT_FOUND / FORBIDDEN /
  * INVALID_PSGC_CODE / SCOPE_NOT_FOUND on failure.
  */
-export const assertUserCanModifyBenefit = async (benefitId: string, user: any) => {
-  const benefit = await prisma.fctBenefit.findFirst({
+export const assertUserCanModifyBenefit = async (
+  benefitId: string,
+  user: any,
+  db: Db = prisma,
+) => {
+  const benefit = await db.fctBenefit.findFirst({
     where: { id: benefitId, deletedAt: null },
     include: {
       benefitPsgcCodes: { where: { deletedAt: null } },
@@ -141,7 +152,7 @@ export const assertUserCanModifyBenefit = async (benefitId: string, user: any) =
   });
   if (!benefit) throw new Error("BENEFIT_NOT_FOUND");
 
-  const scopeMap = await getScopeIdMap();
+  const scopeMap = await getScopeIdMap(db);
   await assertUserAuthorizedForBenefit(benefit, user, scopeMap);
 
   return benefit;
