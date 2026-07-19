@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import * as fieldService from "../services/field.service.js";
 import type { CreateFieldRequest, UpdateFieldRequest } from "../requests/field.request.js";
+import type { CompositeFieldInput } from "../services/field.service.js";
 
 // GET ALL FIELDS
 export const getAllFields = async (_req: Request, res: Response) => {
@@ -61,10 +62,52 @@ export const getFieldById = async (req: Request<{ id: string }>, res: Response) 
   }
 };
 
-// CREATE FIELD
+const mapCompositeFieldError = (res: Response, error: any, action: "create" | "update") => {
+  const message = `Could not ${action} field.`;
+
+  if (error.message === "DUPLICATE_KEY") {
+    return res.status(409).json({ success: false, message, error: "A field with this identifier key already exists.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "INVALID_FOREIGN_KEY") {
+    return res.status(400).json({ success: false, message, error: "The referenced parent field, hierarchy, or input type does not exist.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "NESTED_REPEATER_GROUP_NOT_ALLOWED") {
+    return res.status(400).json({ success: false, message, error: "A repeater subfield cannot itself be a REPEATER_GROUP.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "DYNAMIC_RULE_GROUP_NOT_ALLOWED_FOR_REPEATER_SUBFIELD") {
+    return res.status(409).json({ success: false, message, error: "This field has an existing dynamic rule group and cannot become a repeater subfield.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "DUPLICATE_HIERARCHY") {
+    return res.status(409).json({ success: false, message, error: "A hierarchy with this name already exists.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "DUPLICATE_OPTION_VALUE") {
+    return res.status(409).json({ success: false, message, error: "An option with this name already exists on this field.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "FIELD_OPTION_NOT_FOUND") {
+    return res.status(404).json({ success: false, message, error: "One of the field options you are trying to modify does not exist.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "OPERATOR_NOT_FOUND") {
+    return res.status(400).json({ success: false, message, error: "A referenced condition operator does not exist.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "OPERATOR_INPUT_TYPE_MISMATCH") {
+    return res.status(400).json({ success: false, message, error: "An operator in this tree does not apply to the field's input type.", errorCode: error.message, data: null });
+  }
+
+  return null;
+};
+
+// CREATE FIELD (composite: field + options + dynamic condition tree + inline hierarchy)
 export const createField = async (req: CreateFieldRequest, res: Response) => {
   try {
-    const newField = await fieldService.addField(req.body);
+    const newField = await fieldService.addField(req.body as unknown as CompositeFieldInput);
 
     return res.status(201).json({
       success: true,
@@ -74,28 +117,11 @@ export const createField = async (req: CreateFieldRequest, res: Response) => {
       data: newField
     });
   } catch (error: any) {
-    if (error.message === "DUPLICATE_KEY") {
-      return res.status(409).json({
-        success: false,
-        message: "Could not create field.",
-        error: "A field with this identifier key already exists.",
-        errorCode: error.message,
-        data: null
-      });
-    }
-
-    if (error.message === "INVALID_FOREIGN_KEY") {
-      return res.status(400).json({
-        success: false,
-        message: "Could not create field.",
-        error: "The referenced parent field, hierarchy, or input type does not exist.",
-        errorCode: error.message,
-        data: null
-      });
-    }
+    const mapped = mapCompositeFieldError(res, error, "create");
+    if (mapped) return mapped;
 
     console.error("[FieldController] Error creating field:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: "Could not create field.",
       error: "An unexpected error occurred on the server.",
@@ -105,15 +131,15 @@ export const createField = async (req: CreateFieldRequest, res: Response) => {
   }
 };
 
-// UPDATE FIELD
+// UPDATE FIELD (composite: field + options + dynamic condition tree + inline hierarchy)
 export const updateField = async (req: UpdateFieldRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = req.body as unknown as CompositeFieldInput;
 
     const updatedField = await fieldService.editField(id, updateData);
-    
-    return res.status(200).json({ 
+
+    return res.status(200).json({
       success: true,
       message: "Field updated successfully.",
       error: null,
@@ -131,18 +157,11 @@ export const updateField = async (req: UpdateFieldRequest, res: Response) => {
       });
     }
 
-    if (error.message === "INVALID_FOREIGN_KEY") {
-      return res.status(400).json({
-        success: false,
-        message: "Could not update field.",
-        error: "The referenced parent field, hierarchy, or input type does not exist.",
-        errorCode: error.message,
-        data: null
-      });
-    }
+    const mapped = mapCompositeFieldError(res, error, "update");
+    if (mapped) return mapped;
 
     console.error("[FieldController] Error updating field:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: "Could not update field.",
       error: "An unexpected error occurred on the server.",

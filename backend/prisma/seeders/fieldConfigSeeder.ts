@@ -1,7 +1,7 @@
 // prisma/seeders/fieldConfigSeeder.ts
 
 import { prisma } from "../../src/utils/prisma.js"
-import { inputTypesData, operatorsData } from '../data/fieldConfig';
+import { inputTypesData, operatorsData } from '../data/fieldConfig.js';
 
 export async function seedFieldConfiguration() {
   console.log('Seeding System Field Input Types...');

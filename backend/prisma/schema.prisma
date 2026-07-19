@@ -402,7 +402,7 @@ model FctBenefitRuleGroup {
 
   benefitId         String
   benefit           FctBenefit?           @relation(fields: [benefitId], references: [id])
-  parentRuleGroupId String
+  parentRuleGroupId String?
   parentRuleGroup   FctBenefitRuleGroup?  @relation("childFields", fields: [parentRuleGroupId], references: [id])
   childFields       FctBenefitRuleGroup[] @relation("childFields")
 
@@ -423,7 +423,7 @@ model FctDynamicRuleGroup {
   fieldId String
   field   DimField? @relation(fields: [fieldId], references: [id])
 
-  parentRuleGroupId String
+  parentRuleGroupId String?
   parentRuleGroup   FctDynamicRuleGroup?  @relation("childFields", fields: [parentRuleGroupId], references: [id])
   childFields       FctDynamicRuleGroup[] @relation("childFields")
 
@@ -438,6 +438,13 @@ model FctDynamicRuleGroup {
 model DimField {
   id String @id @default(uuid())
 
+  // key is the normalized, snake_case form of englishName (lowercased, whitespace/
+  // separators collapsed to "_") — e.g. "first_field" == "FirstField" == "FIRST FIELD"
+  // == "FIRST   FIELD" == "first-FiEld" all normalize to "first_field". Postgres can't
+  // enforce that kind of normalized uniqueness directly on englishName (no case/
+  // whitespace-insensitive constraint), so key exists specifically to carry the
+  // normalized value and be the actual @unique target — application code computes it
+  // at write time.
   key String @unique @db.VarChar(255)
 
   parentFieldId String?
@@ -511,7 +518,7 @@ model DimFieldInputType {
 
   deletedAt DateTime?
 
-  @@map("dim_input_type")
+  @@map("dim_field_input_type")
 }
 
 model DimFieldOption {
@@ -548,6 +555,9 @@ model DimFieldHierarchy {
   id          String @id @default(uuid())
   englishName String @db.VarChar(255)
   tagalogName String @db.VarChar(255)
+
+  englishDescription String
+  tagalogDescription String
 
   fields               DimField[]
   fieldHierarchyLevels DimFieldHierarchyLevel[]

@@ -58,8 +58,25 @@ export const operatorsData: SeedOperator[] = [
   // DATE OPERATORS
   { inputTypeValue: 'DATE', value: 'BEFORE', englishName: 'Is Before', tagalogName: 'Ay Bago ang' },
   { inputTypeValue: 'DATE', value: 'AFTER', englishName: 'Is After', tagalogName: 'Ay Pagkatapos ng' },
+  { inputTypeValue: 'DATE', value: 'EQUALS', englishName: 'Is Exactly', tagalogName: 'Ay Sakto sa' },
+  { inputTypeValue: 'DATE', value: 'ON_OR_BEFORE', englishName: 'On or Before', tagalogName: 'Sa o Bago ang' },
+  { inputTypeValue: 'DATE', value: 'ON_OR_AFTER', englishName: 'On or After', tagalogName: 'Sa o Pagkatapos ng' },
+  { inputTypeValue: 'DATE', value: 'IN_THE_PAST', englishName: 'Is in the Past', tagalogName: 'Ay Tapos na' },
+  { inputTypeValue: 'DATE', value: 'IN_THE_FUTURE', englishName: 'Is in the Future', tagalogName: 'Ay sa Hinaharap' },
+  { inputTypeValue: 'DATE', value: 'IS_CURRENT_DAY', englishName: 'Is Today', tagalogName: 'Ay Ngayong Araw' },
+  { inputTypeValue: 'DATE', value: 'IS_CURRENT_WEEK', englishName: 'Is This Week', tagalogName: 'Ay Ngayong Linggo' },
+  { inputTypeValue: 'DATE', value: 'IS_CURRENT_MONTH', englishName: 'Is This Month', tagalogName: 'Ay Ngayong Buwan' },
+  { inputTypeValue: 'DATE', value: 'IS_CURRENT_YEAR', englishName: 'Is This Year', tagalogName: 'Ay Ngayong Taon' },
+  { inputTypeValue: 'DATE', value: 'BETWEEN', englishName: 'Is Between', tagalogName: 'Ay Nasa Pagitan ng' },
+
+  // DATE AGE OPERATORS (actualValue treated as a birth date)
   { inputTypeValue: 'DATE', value: 'AGE_GREATER_THAN', englishName: 'Age Is Greater Than', tagalogName: 'Edad ay Higit sa' },
   { inputTypeValue: 'DATE', value: 'AGE_LESS_THAN', englishName: 'Age Is Less Than', tagalogName: 'Edad ay Mababa sa' },
+  { inputTypeValue: 'DATE', value: 'AGE_GREATER_THAN_EQUAL', englishName: 'Age Is Greater Than or Equal To', tagalogName: 'Edad ay Higit sa o Katumbas ng' },
+  { inputTypeValue: 'DATE', value: 'AGE_LESS_THAN_EQUAL', englishName: 'Age Is Less Than or Equal To', tagalogName: 'Edad ay Mababa sa o Katumbas ng' },
+  { inputTypeValue: 'DATE', value: 'AGE_EQUALS', englishName: 'Age Is Equal To', tagalogName: 'Edad ay Katumbas ng' },
+  { inputTypeValue: 'DATE', value: 'AGE_NOT_EQUALS', englishName: 'Age Is Not Equal To', tagalogName: 'Edad ay Hindi Katumbas ng' },
+  { inputTypeValue: 'DATE', value: 'AGE_BETWEEN', englishName: 'Age Is Between', tagalogName: 'Edad ay Nasa Pagitan ng' },
 
   // DURATION OPERATORS
   { inputTypeValue: 'DURATION', value: 'EQUALS', englishName: 'Is Equal To', tagalogName: 'Ay Katumbas ng' },

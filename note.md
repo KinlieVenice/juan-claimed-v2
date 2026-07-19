@@ -42,7 +42,7 @@ Seeders
 
 Commands:
 -Running the seed entry point:      docker compose exec backend npx prisma db seed
--Migrating:                         docker compose exec backend npx prisma migrate dev --name ____
+-Migrating:                         docker compose exec backend npx prisma migrate dev --name
                                     docker compose exec backend npx prisma generate
                                     docker compose exec -d backend npx prisma studio --port 5555 --browser none
 -Watching backend docker logs       docker compose logs -f backend 

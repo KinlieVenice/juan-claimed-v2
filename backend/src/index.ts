@@ -5,6 +5,10 @@ import { healthRouter } from "./routes/health.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { logger } from "./utils/logger.js";
 import { fieldRouter } from "./routes/field.route.js";
+import { ruleGroupRouter } from "./routes/ruleGroup.route.js";
+import { dynamicRuleGroupRouter } from "./routes/fieldRuleGroup.route.js";
+import { fieldHierarchyRouter } from "./routes/fieldHierarchy.route.js";
+import { fieldLookupRouter } from "./routes/fieldLookup.route.js";
 import { groupRouter } from "./routes/group.route.js";
 import { userRouter } from "./routes/user.route.js";
 import { benefitRouter } from "./routes/benefit.routes.js";
@@ -25,7 +29,12 @@ app.use((req, _res, next) => {
 });
 
 app.use("/health", healthRouter);
-app.use("/api/fields", fieldRouter);
+app.use("/api/api/fieldss", fieldRouter);
+app.use("/api/rule-groups", ruleGroupRouter);
+app.use("/api/dynamic-rule-groups", dynamicRuleGroupRouter);
+app.use("/api/field-hierarchies", fieldHierarchyRouter);
+app.use("/api", fieldLookupRouter);
+
 app.use("/api/groups", groupRouter);
 app.use("/api/users", userRouter);
 app.use("/api/benefits", benefitRouter);
