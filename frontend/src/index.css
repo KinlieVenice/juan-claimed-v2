@@ -1,1 +1,121 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+:root {
+  /* Soft border radius per brand direction */
+  --radius: 0.9rem;
+
+  --background: #f7f8fc;
+  --foreground: #101323;
+
+  --card: #ffffff;
+  --card-foreground: #101323;
+
+  --popover: #ffffff;
+  --popover-foreground: #101323;
+
+  /* eGovPH brand: primary blue, red + gold accents */
+  --primary: #0040e7;
+  --primary-foreground: #ffffff;
+
+  --secondary: #eef1fb;
+  --secondary-foreground: #1c2340;
+
+  --muted: #eef0f6;
+  --muted-foreground: #62698a;
+
+  --accent: #fff6d6;
+  --accent-foreground: #7a5f00;
+
+  --destructive: #a60c0c;
+  --destructive-foreground: #ffffff;
+
+  --success: #16803c;
+  --success-foreground: #ffffff;
+
+  --warning: #f2c500;
+  --warning-foreground: #4a3900;
+
+  --gold: #f2c500;
+  --gold-foreground: #4a3900;
+
+  --border: #dfe3f0;
+  --input: #dfe3f0;
+  --ring: color-mix(in oklab, #0040e7 45%, transparent);
+
+  --sidebar: #061341;
+  --sidebar-foreground: #e7ebff;
+  --sidebar-primary: #2f5bff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #0e1f5c;
+  --sidebar-accent-foreground: #f2f4ff;
+  --sidebar-border: #142b70;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
