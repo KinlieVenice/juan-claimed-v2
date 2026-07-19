@@ -1,5 +1,8 @@
-import { prisma } from "../utils/prisma.js";
+import { prisma, Prisma } from "../utils/prisma.js";
 import { assertUserCanModifyBenefit } from "./benefitLocation.service.js";
+
+// See benefitLocation.service.ts — same optional-transaction-client pattern.
+type Db = typeof prisma | Prisma.TransactionClient;
 
 export const listRequirements = async (benefitId: string, user: any) => {
   await assertUserCanModifyBenefit(benefitId, user);
@@ -9,10 +12,15 @@ export const listRequirements = async (benefitId: string, user: any) => {
   });
 };
 
-export const createRequirement = async (benefitId: string, data: any, user: any) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+export const createRequirement = async (
+  benefitId: string,
+  data: any,
+  user: any,
+  db: Db = prisma,
+) => {
+  await assertUserCanModifyBenefit(benefitId, user, db);
 
-  return prisma.fctBenefitRequirement.create({
+  return db.fctBenefitRequirement.create({
     data: {
       benefitId,
       englishName: data.englishName,
@@ -29,15 +37,16 @@ export const editRequirement = async (
   id: string,
   data: any,
   user: any,
+  db: Db = prisma,
 ) => {
-  await assertUserCanModifyBenefit(benefitId, user);
+  await assertUserCanModifyBenefit(benefitId, user, db);
 
-  const existing = await prisma.fctBenefitRequirement.findFirst({
+  const existing = await db.fctBenefitRequirement.findFirst({
     where: { id, benefitId, deletedAt: null },
   });
   if (!existing) throw new Error("REQUIREMENT_NOT_FOUND");
 
-  return prisma.fctBenefitRequirement.update({
+  return db.fctBenefitRequirement.update({
     where: { id },
     data: {
       englishName: data.englishName,
