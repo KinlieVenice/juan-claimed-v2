@@ -2,17 +2,11 @@ import { prisma } from "../utils/prisma.js";
 import { getPsgcLocation } from "./psgc.service.js";
 
 /**
- * Determines the DimScope value for a PSGC location based on its most
- * specific populated code — checked from most to least specific.
+ * The DimScope value for a PSGC location is whichever endpoint resolved it
+ * (`getPsgcLocation` stamps this on as `scopeValue`) — the PSGC API has no
+ * self-referencing level field to infer it from otherwise.
  */
-export const getScopeValueForLocation = (location: any): string => {
-  if (location.barangayCode) return "BARANGAYS";
-  if (location.cityCode || location.municipalityCode)
-    return "CITIES-MUNICIPALITIES";
-  if (location.districtCode) return "DISTRICTS";
-  if (location.provinceCode) return "PROVINCES";
-  return "REGIONS";
-};
+export const getScopeValueForLocation = (location: any): string => location.scopeValue;
 
 /**
  * Hierarchical boundary check: does this user's own scope/psgcCode
