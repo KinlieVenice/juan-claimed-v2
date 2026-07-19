@@ -2,7 +2,12 @@
 
 Base URL: `http://localhost:4000` (port from `BACKEND_PORT` env var).
 
-Auth: mock auth via `mockAuth` middleware — every protected route requires header `x-user-id: <DimUser.id>`. No `x-user-id` or unknown id → `401`, Shape B.
+Auth: every protected route runs the `mockAuth` middleware (kept under that name for zero route-file churn, but it's real auth now):
+1. `Authorization: Bearer <JWT>` present → verified via `jwt.verify`, current `DimUser` (must have `deletedAt: null` and `active: true`) loaded and set as `req.user`. `401` if invalid/expired/missing user, `403` if deactivated.
+2. No `Authorization` header, `NODE_ENV !== "production"` → falls back to the original `x-user-id: <DimUser.id>` header (dev/testing only, same active/deleted checks apply).
+3. No `Authorization` header, `NODE_ENV === "production"` → `401` immediately, the mock path can't activate.
+
+Get a token via `POST /api/auth/login` (username+password, AGENT/SUPERADMIN) or `POST /api/auth/google` (Google ID token, USER — auto-creates the account on first login).
 
 **Response envelope — Shape B everywhere now**: `{ success, message, error, errorCode, data }` on both success and error. (Fields/groups controllers have their own bespoke messages/errorCodes per action; benefits/sub-resources/users/scopes share the `handleApiError`/`sendSuccess` helpers in `utils/errorMapping.util.ts` / `utils/apiResponse.util.ts`.)
 
@@ -12,6 +17,25 @@ Auth: mock auth via `mockAuth` middleware — every protected route requires hea
 
 ### `GET /health`
 No auth. Response: whatever `getHealthStatus()` returns (raw JSON, not wrapped in the envelope).
+
+---
+
+## Auth — `/api/auth`
+
+### `POST /api/auth/login`
+No auth (this issues the token). Body (zod `loginSchema`): `{ username, password }`.
+
+`200` → `data: { token, user }` (`user` has `passHash` stripped). `401` `INVALID_CREDENTIALS` — deliberately generic (wrong username, wrong password, `active: false`, or no `passHash` set — e.g. a USER-role account — all return the exact same message, never revealing which).
+
+### `POST /api/auth/google`
+No auth. Body (zod `googleLoginSchema`): `{ idToken }` (a Google ID token from the frontend's Google Identity Services flow).
+
+Verifies the token via `google-auth-library` against `GOOGLE_CLIENT_ID`. If no `DimUser` with that `googleId` exists yet, creates one: `role: "USER"`, `googleId`, `email`, `firstName`/`lastName` from the Google profile, `avatarUrl` from the profile picture, `username` derived from the email local-part (collision-safe — appends `1`, `2`, ... on a taken username), `scopeId`/`groupId`/`psgcCode` all `null`.
+
+`200` → `data: { token, user }`. `401` `INVALID_CREDENTIALS` if the ID token doesn't verify. `403` `FORBIDDEN` if the matched account is deactivated.
+
+### `GET /api/auth/me`
+Authenticated (runs through the real `mockAuth` middleware). `200` → `data: <current req.user>` (no `passHash`). Useful for the frontend to rehydrate a session from a stored token.
 
 ---
 
@@ -135,6 +159,16 @@ Body (zod `assignRoleSchema`):
 Same matrix table as create (no password field — only reassigns role/scope/group/location on an existing user).
 
 `200` → `data: User` (no `passHash`, `updatedById` stamped). Errors: `404` `USER_NOT_FOUND` / `INVALID_SCOPE`; `400` matrix violation.
+
+### `PATCH /api/users/:id/active` — activate/deactivate
+`mockAuth` + `requireRole(MANAGE_USERS)` → SUPERADMIN only. Body (zod `setUserActiveSchema`): `{ active: boolean }`.
+
+`200` → `data: User`. A deactivated user is rejected at `POST /api/auth/login`/`POST /api/auth/google` (`401`/`403`) and at every other route's auth check (`403`) — this is what actually gates access, checked live, not just at login time. Errors: `404` `USER_NOT_FOUND`.
+
+### `DELETE /api/users/:id` — soft delete
+`mockAuth` + `requireRole(MANAGE_USERS)` → SUPERADMIN only. No body. Sets `deletedAt` + `updatedById`.
+
+`200` → `data: { id, deletedAt }`. A deleted user can no longer log in or authenticate via any path (`deletedAt: null` filter applied everywhere). Errors: `404` `USER_NOT_FOUND`.
 
 ---
 
@@ -271,6 +305,17 @@ Body (zod `benefitAttachmentSchema`):
 
 ### `DELETE .../attachments/:attachmentId`
 `requireRole(DELETE_BENEFIT_ATTACHMENTS)`. No body. Soft delete. `200` → `data: Attachment`. `404` `ATTACHMENT_NOT_FOUND` / parent not found.
+
+---
+
+## Attachment upload token — `/api/attachments/upload-token`
+
+### `POST /api/attachments/upload-token`
+`mockAuth` + `requireRole(CREATE_BENEFIT_ATTACHMENTS)` → SUPERADMIN or AGENT. Body is whatever `@vercel/blob/client`'s `upload()` helper sends (a `HandleUploadBody` — not a plain JSON shape you construct by hand, this is called by the Blob client SDK on the frontend, not directly).
+
+Issues a short-lived client upload token via `@vercel/blob`'s `handleUpload` server helper, restricted to the same `ALLOWED_ATTACHMENT_FILE_TYPES` allowlist the attachment CRUD enforces (`image/jpg|jpeg|png|gif|webp`, `application/pdf`, `.doc`/`.docx`), max 25MB. **Requires `BLOB_READ_WRITE_TOKEN` in `.env`** (provision a Blob store in the Vercel dashboard yourself) — without it, `400` `BLOB_TOKEN_ERROR`.
+
+Frontend flow (not built here, backend-only pass): call `upload()` from `@vercel/blob/client` pointed at this endpoint as `handleUploadUrl` → get back a blob URL → `POST` that URL as `filePath` to the existing `.../requirements/:id/attachments` or `.../utilizations/:id/attachments` create endpoint (unchanged, still metadata-only).
 
 ---
 

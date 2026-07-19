@@ -182,3 +182,80 @@ export const createUser = async (req: CreateUserRequest, res: Response) => {
     });
   }
 };
+
+export const setUserActive = async (
+  req: Request<{ id: string }, {}, { active: boolean }>,
+  res: Response,
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const updatedUser = await userService.setUserActive(req.params.id, req.body.active, req.user);
+
+    return res.status(200).json({
+      success: true,
+      message: "User active status updated successfully.",
+      error: null,
+      errorCode: null,
+      data: updatedUser,
+    });
+  } catch (error: any) {
+    if (error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Could not update user.",
+        error: "The requested user does not exist.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    console.error("[UserController] Error setting user active status:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not update user.",
+      error: "An unexpected error occurred on the server.",
+      errorCode: "SERVER_ERROR",
+      data: null,
+    });
+  }
+};
+
+export const deleteUser = async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const result = await userService.deleteUser(req.params.id, req.user);
+
+    return res.status(200).json({
+      success: true,
+      message: "User deleted successfully.",
+      error: null,
+      errorCode: null,
+      data: result,
+    });
+  } catch (error: any) {
+    if (error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Could not delete user.",
+        error: "The requested user does not exist.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    console.error("[UserController] Error deleting user:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not delete user.",
+      error: "An unexpected error occurred on the server.",
+      errorCode: "SERVER_ERROR",
+      data: null,
+    });
+  }
+};

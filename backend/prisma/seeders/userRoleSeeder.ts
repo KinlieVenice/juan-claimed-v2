@@ -1,7 +1,12 @@
 import { prisma } from "../../src/utils/prisma.js";
 import { UserRole } from "../../src/generated/prisma/client.js";
+import { hashPassword } from "../../src/utils/password.js";
 
 export async function seedUsersAndRoles() {
+  // Dev-only password so POST /api/auth/login is testable against seeded
+  // accounts without going through createUser first.
+  const devPassHash = await hashPassword("password123");
+
   console.log("Seeding System Scopes...");
   const scopeData = [
     { name: "Superadmin", value: "SUPERADMIN" },
@@ -51,7 +56,7 @@ export async function seedUsersAndRoles() {
   // A. Superadmin Account (Scope: Superadmin, Group: NULL, PsgcCode: Superadmin)
   await prisma.dimUser.upsert({
     where: { email: "superadmin@juanclaimed.com" },
-    update: { groupId: null },
+    update: { groupId: null, passHash: devPassHash },
     create: {
       username: "superadmin_main",
       email: "superadmin@juanclaimed.com",
@@ -61,13 +66,14 @@ export async function seedUsersAndRoles() {
       scopeId: createdScopes["SUPERADMIN"],
       groupId: null,
       psgcCode: "SUPERADMIN",
+      passHash: devPassHash,
     },
   });
 
   // B. National Agent Account (Scope: National, Group: NOT NULL, PsgcCode: NULL)
   await prisma.dimUser.upsert({
     where: { email: "agent.doh@juanclaimed.com" },
-    update: {},
+    update: { passHash: devPassHash },
     create: {
       username: "agent_national_doh",
       email: "agent.doh@juanclaimed.com",
@@ -77,13 +83,14 @@ export async function seedUsersAndRoles() {
       scopeId: createdScopes["NATIONAL"],
       groupId: dohGroup.id,
       psgcCode: null,
+      passHash: devPassHash,
     },
   });
 
   // C. Provincial Agent Account (Scope: Province, Group: NULL, PsgcCode: NOT NULL)
   await prisma.dimUser.upsert({
     where: { email: "agent.cavite@juanclaimed.com" },
-    update: {},
+    update: { passHash: devPassHash },
     create: {
       username: "agent_prov_cavite",
       email: "agent.cavite@juanclaimed.com",
@@ -93,6 +100,7 @@ export async function seedUsersAndRoles() {
       scopeId: createdScopes["PROVINCES"],
       groupId: null,
       psgcCode: "012800000",
+      passHash: devPassHash,
     },
   });
 

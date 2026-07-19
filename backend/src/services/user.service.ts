@@ -2,15 +2,11 @@ import { prisma } from "../utils/prisma.js";
 import { UserRole } from "../generated/prisma/client.js";
 import type { AssignRoleDto, CreateUserDto } from "../requests/user.request.js";
 import { validateRoleConfig } from "./userAccess.service.js";
-import { hashPassword } from "../utils/password.js";
-
-const omitPassHash = <T extends { passHash?: unknown }>(user: T) => {
-  const { passHash: _omit, ...safeUser } = user;
-  return safeUser;
-};
+import { hashPassword, omitPassHash } from "../utils/password.js";
 
 export const fetchAllUsers = async () => {
   const users = await prisma.dimUser.findMany({
+    where: { deletedAt: null },
     include: {
       scope: true,
       group: true,
@@ -20,8 +16,8 @@ export const fetchAllUsers = async () => {
 };
 
 export const fetchUserById = async (id: string) => {
-  const user = await prisma.dimUser.findUnique({
-    where: { id },
+  const user = await prisma.dimUser.findFirst({
+    where: { id, deletedAt: null },
     include: { scope: true, group: true },
   });
 
@@ -30,7 +26,7 @@ export const fetchUserById = async (id: string) => {
 };
 
 export const assignUserRole = async (id: string, data: AssignRoleDto, actingUser: any) => {
-  const user = await prisma.dimUser.findUnique({ where: { id } });
+  const user = await prisma.dimUser.findFirst({ where: { id, deletedAt: null } });
   if (!user) throw new Error("USER_NOT_FOUND");
 
   // Normalize undefined to null so the matrix validation is exact.
@@ -94,4 +90,30 @@ export const createUser = async (data: CreateUserDto, actingUser: any) => {
   });
 
   return omitPassHash(newUser);
+};
+
+export const setUserActive = async (id: string, active: boolean, actingUser: any) => {
+  const user = await prisma.dimUser.findFirst({ where: { id, deletedAt: null } });
+  if (!user) throw new Error("USER_NOT_FOUND");
+
+  const updatedUser = await prisma.dimUser.update({
+    where: { id },
+    data: { active, updatedById: actingUser.id },
+    include: { scope: true, group: true },
+  });
+
+  return omitPassHash(updatedUser);
+};
+
+export const deleteUser = async (id: string, actingUser: any) => {
+  const user = await prisma.dimUser.findFirst({ where: { id, deletedAt: null } });
+  if (!user) throw new Error("USER_NOT_FOUND");
+
+  const deletedAt = new Date();
+  await prisma.dimUser.update({
+    where: { id },
+    data: { deletedAt, updatedById: actingUser.id },
+  });
+
+  return { id, deletedAt };
 };

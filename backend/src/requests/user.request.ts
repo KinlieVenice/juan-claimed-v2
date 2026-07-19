@@ -31,3 +31,10 @@ export const createUserSchema = z
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;
 export type CreateUserRequest = Request<{}, {}, CreateUserDto>;
+
+export const setUserActiveSchema = z.object({
+  active: z.boolean(),
+});
+
+export type SetUserActiveDto = z.infer<typeof setUserActiveSchema>;
+export type SetUserActiveRequest = Request<{ id: string }, {}, SetUserActiveDto>;

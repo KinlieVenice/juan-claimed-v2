@@ -4,9 +4,15 @@ import {
   getUserById,
   assignRoleAndScope,
   createUser,
+  setUserActive,
+  deleteUser,
 } from "../controllers/user.controller.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
-import { assignRoleSchema, createUserSchema } from "../requests/user.request.js";
+import {
+  assignRoleSchema,
+  createUserSchema,
+  setUserActiveSchema,
+} from "../requests/user.request.js";
 import { mockAuth } from "../middlewares/mockAuth.middleware.js";
 import { requireRole } from "../middlewares/role.middleware.js";
 import { PERMISSIONS } from "../constants/permissions.js";
@@ -33,4 +39,21 @@ userRouter.patch(
   requireRole(PERMISSIONS.MANAGE_USERS),
   validateBody(assignRoleSchema),
   assignRoleAndScope,
+);
+
+// Activating/deactivating accounts (Only Superadmin)
+userRouter.patch(
+  "/:id/active",
+  mockAuth,
+  requireRole(PERMISSIONS.MANAGE_USERS),
+  validateBody(setUserActiveSchema),
+  setUserActive,
+);
+
+// Soft-deleting accounts (Only Superadmin)
+userRouter.delete(
+  "/:id",
+  mockAuth,
+  requireRole(PERMISSIONS.MANAGE_USERS),
+  deleteUser,
 );

@@ -23,6 +23,9 @@ const mapError = (message: string): MappedError => {
   if (message.startsWith("SCOPE_NOT_FOUND")) {
     return { status: 500, friendlyMessage: "An unexpected server configuration error occurred." };
   }
+  if (message.startsWith("INVALID_CREDENTIALS")) {
+    return { status: 401, friendlyMessage: "Incorrect username or password." };
+  }
   if (message.startsWith("FORBIDDEN") || message.startsWith("UNAUTHORIZED_SCOPE")) {
     return { status: 403, friendlyMessage: "You do not have permission to perform this action." };
   }
