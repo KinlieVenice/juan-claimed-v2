@@ -4,3 +4,4 @@ import { getHealthStatus } from "../services/health.service.js";
 export const healthCheck = (_req: Request, res: Response) => {
   res.json(getHealthStatus());
 };
+

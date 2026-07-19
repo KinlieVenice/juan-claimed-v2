@@ -3,12 +3,15 @@
 
 import { prisma } from "../src/utils/prisma.js"
 import { seedFieldConfiguration } from './seeders/fieldConfigSeeder';
+import { seedUsersAndRoles } from "./seeders/userRoleSeeder.js";
 
 async function main() {
   console.log('Executing Main Master Database Seed...');
 
   // Execute modular seed blocks sequentially
   await seedFieldConfiguration();
+
+  await seedUsersAndRoles();
   
   // Future seed blocks can be safely added here:
   // await seedUsersAndRoles(prisma);
