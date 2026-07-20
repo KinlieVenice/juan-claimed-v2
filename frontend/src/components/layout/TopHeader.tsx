@@ -31,7 +31,7 @@ export function TopHeader() {
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ShieldCheck className="size-4.5" />
           </div>
-          <span className="text-sm font-bold tracking-tight text-foreground">Juan-Claimed</span>
+          <span className="font-display text-sm font-bold tracking-tight text-foreground">Juan-Claimed</span>
         </Link>
 
         {role === "USER" && (
