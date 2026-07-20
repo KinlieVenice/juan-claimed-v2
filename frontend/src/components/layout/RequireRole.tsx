@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { useAuth, type Role } from "@/lib/mock-auth";
+import { useAuth, type Role } from "@/lib/auth";
 
 interface RequireRoleProps {
   allow: Role[];

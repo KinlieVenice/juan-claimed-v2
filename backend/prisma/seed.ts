@@ -4,6 +4,10 @@
 import { prisma } from "../src/utils/prisma.js"
 import { seedFieldConfiguration } from './seeders/fieldConfigSeeder';
 import { seedUsersAndRoles } from "./seeders/userRoleSeeder.js";
+import { seedProfileFields } from "./seeders/profileFieldSeeder.js";
+import { seedCountries } from "./seeders/countriesSeeder.js";
+import { seedPhLocationHierarchy } from "./seeders/phLocationHierarchySeeder.js";
+import { seedOccupationOthers } from "./seeders/occupationOthersSeeder.js";
 
 async function main() {
   console.log('Executing Main Master Database Seed...');
@@ -12,9 +16,16 @@ async function main() {
   await seedFieldConfiguration();
 
   await seedUsersAndRoles();
-  
+
+  await seedProfileFields();
+
+  await seedPhLocationHierarchy();
+
+  await seedOccupationOthers();
+
+  await seedCountries();
+
   // Future seed blocks can be safely added here:
-  // await seedUsersAndRoles(prisma);
   // await seedDefaultSettings(prisma);
 
   console.log('All database seeder modules executed successfully.');

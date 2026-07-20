@@ -52,14 +52,18 @@ datasource db {
 // National scope agents are often for gov departments or agencies that have benefits for all regions, provinces, cities, and barangays. so they can create benefits for all regions, provinces, cities, and barangays or just select a few. so we use group to group benefits together for natioanl. for example, if a national scope agent has a group of "Department of Health", then they can create benefits for all regions, provinces, cities, and barangays or just select a few. and all benefits created by that agent will be grouped under "Department of Health".
 
 model DimUser {
-  id         String   @id @default(uuid())
-  username   String   @unique @db.VarChar(255)
-  email      String   @unique @db.VarChar(255)
-  firstName  String   @db.VarChar(255)
-  middleName String?  @db.VarChar(255)
-  lastName   String   @db.VarChar(255)
-  passHash   String?  @db.VarChar(255)
-  role       UserRole @default(USER)
+  id                 String   @id @default(uuid())
+  username           String   @unique @db.VarChar(255)
+  email              String   @unique @db.VarChar(255)
+  firstName          String   @db.VarChar(255)
+  middleName         String?  @db.VarChar(255)
+  lastName           String   @db.VarChar(255)
+  passHash           String?  @db.VarChar(255)
+  // True right after a Superadmin-triggered password reset — the next successful
+  // password login must be followed by POST /api/auth/change-password before anything
+  // else, enforced on the frontend by redirecting straight to /reset-password.
+  forceResetPassword Boolean  @default(false)
+  role               UserRole @default(USER)
 
   psgcCode String? @db.VarChar(255)
 
@@ -70,6 +74,7 @@ model DimUser {
   group   DimGroup? @relation(fields: [groupId], references: [id])
 
   googleId  String? @db.VarChar(255)
+  egovId    String? @db.VarChar(255)
   avatarUrl String?
   active    Boolean @default(true)
 
@@ -81,6 +86,8 @@ model DimUser {
   requirementsUpdators           FctBenefitRequirement[]     @relation("RequirementUpdatedBy")
   utilizationsCreators           FctBenefitUtilization[]     @relation("UtilizationCreatedBy")
   utilizationsUpdators           FctBenefitUtilization[]     @relation("UtilizationUpdatedBy")
+  howToApplyCreators             FctBenefitHowToApply[]      @relation("HowToApplyCreatedBy")
+  howToApplyUpdators             FctBenefitHowToApply[]      @relation("HowToApplyUpdatedBy")
   attachmentsCreators            FctAttachment[]             @relation("AttachmentCreatedBy")
   attachmentsUpdators            FctAttachment[]             @relation("AttachmentUpdatedBy")
   scopesCreators                 DimScope[]                  @relation("ScopeCreatedBy")
@@ -211,6 +218,7 @@ model FctBenefit {
 
   benefitRequirements FctBenefitRequirement[]
   benefitUtilizations FctBenefitUtilization[]
+  benefitHowToApplies FctBenefitHowToApply[]
   benefitPsgcCodes    DimBenefitPsgcCode[]
   benefitGroups       DimBenefitGroup[]
   benefitRuleGroups   FctBenefitRuleGroup[]
@@ -340,6 +348,32 @@ model FctBenefitUtilization {
   @@map("fct_benefit_utilization")
 }
 
+model FctBenefitHowToApply {
+  id String @id @default(uuid())
+
+  benefitId String
+  benefit   FctBenefit @relation(fields: [benefitId], references: [id])
+
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
+  englishDescription String
+  tagalogDescription String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?  @db.VarChar(255)
+  createdBy   DimUser? @relation("HowToApplyCreatedBy", fields: [createdById], references: [id])
+
+  updatedById String?  @db.VarChar(255)
+  updatedBy   DimUser? @relation("HowToApplyUpdatedBy", fields: [updatedById], references: [id])
+
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+  @@map("fct_benefit_how_to_apply")
+}
+
 model FctAttachment {
   id String @id @default(uuid())
 
@@ -375,7 +409,6 @@ model DimBenefitFieldCondition {
 
   benefitFieldConditionId String
   benefitFieldCondition   FctDynamicFieldCondition   @relation("BFC_FDC", fields: [benefitFieldConditionId], references: [id])
-  fieldConditions         FctDynamicFieldCondition[] @relation("FDC_BFC")
 
   fieldConditionOperatorId String
   fieldConditionOperator   DimFieldConditionOperator @relation(fields: [fieldConditionOperatorId], references: [id])
@@ -454,9 +487,21 @@ model DimField {
   parentField   DimField?  @relation("childFields", fields: [parentFieldId], references: [id])
   childFields   DimField[] @relation("childFields")
 
+  // Distinct from parentFieldId (REPEATER_GROUP row-columns, always rendered as part of
+  // that table). This field has its own dynamicCondition naming anchorField as one of its
+  // "Parent Dependents" (a field it depends on), and wants to render pinned immediately
+  // under it instead of at its own flat sortOrder — see field.service.ts's
+  // assertAnchorFieldValid (anchorFieldId must be an actual referenced conditionFieldId in
+  // this field's own tree) and the auto-detach logic in editField (removing that
+  // dependency from the tree resets this back to null).
+  anchorFieldId    String?
+  anchorField      DimField?  @relation("FieldAnchor", fields: [anchorFieldId], references: [id], onDelete: SetNull)
+  anchoredChildren DimField[] @relation("FieldAnchor")
+
   englishName String @db.VarChar(255)
   tagalogName String @db.VarChar(255)
-  description String
+  englishDescription String
+  tagalogDescription String
 
   fieldInputTypeId String
   fieldInputType   DimFieldInputType @relation(fields: [fieldInputTypeId], references: [id])
@@ -464,16 +509,39 @@ model DimField {
   fieldHierarchyId String?
   hierarchy        DimFieldHierarchy? @relation(fields: [fieldHierarchyId], references: [id])
 
+  // Real DB-level link (Prisma implicit many-to-many, not string-matching on englishName)
+  // for fields whose options are dynamically sourced from the shared DimCountries reference
+  // table instead of real DimFieldOption rows — see fieldOptions.service.ts's
+  // fetchFieldOptions. Many-to-many because the same 249 country rows back BOTH the
+  // Nationality and Country fields at once; a plain fieldId FK on DimCountries could only
+  // ever point at one owner.
+  countries DimCountries[]
+
   required       Boolean             @default(true)
   sortOrder      Int                 @default(0)
   configJson     Json?
   classification FieldClassification @default(FOLLOW_UP)
+  // A system-shipped starter field, whether or not it's actually eGovPH-sourced (see
+  // eGovField below) — e.g. "Occupation" is `default` but was authored by us, not synced.
   default        Boolean             @default(false)
+  // True = this field's VALUE is genuinely sourced from eGovPH (pre-filled on the public
+  // form, locked from editing there; name/classification locked in the admin form too).
+  // Distinct from `default`: a field can be a system-shipped starter field without being
+  // eGov-sourced (see the Occupation example above), so this is the actual signal for
+  // "don't let anyone hand-edit this — it either comes from eGovPH or must stay in sync
+  // with what eGovPH literally calls it."
+  eGovField      Boolean             @default(false)
+  // True = this field can still be answered like any other GLOBAL/FOLLOW_UP field, but
+  // must not be selectable as a dependency target when an admin builds a benefit's
+  // eligibility rule tree (or another field's show/hide condition) — e.g. free-text name/
+  // address fields that aren't meaningful eligibility comparators.
+  notConditional Boolean             @default(false)
 
   userFieldAnswers      FctUserFieldAnswer[]
   userFieldAnswerGroups FctUserFieldAnswerGroup[]
   fieldOptions          DimFieldOption[]
   dynamicRuleGroups     FctDynamicRuleGroup[]
+  dependentFieldConditions FctDynamicFieldCondition[] @relation("FDC_DF")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -492,7 +560,6 @@ model DimField {
 enum FieldClassification {
   GLOBAL
   FOLLOW_UP
-  PROFILE
 }
 
 //for context these are some of the types
@@ -560,6 +627,20 @@ model DimFieldHierarchy {
   id          String @id @default(uuid())
   englishName String @db.VarChar(255)
   tagalogName String @db.VarChar(255)
+
+  // Same convention as DimField.key: generated once at creation (generateUniqueCode) and
+  // never recomputed on edit — see fieldHierarchy.service.ts's createHierarchyWith. A few
+  // well-known SYSTEM hierarchies get a hand-picked key with no hex prefix instead (e.g.
+  // "PH_LOCATION", set directly by prisma/seeders/phLocationHierarchySeeder.ts) — the
+  // frontend special-cases those exact strings to swap in a purpose-built field component
+  // (PsgcPhLocationHierarchyField.tsx) instead of the generic static-node one. Nullable only
+  // because rows created before this column existed have none.
+  key String? @unique @db.VarChar(255)
+
+  // System-shipped hierarchy (mirrors DimField.default) — reserved for whenever a
+  // delete-hierarchy capability gets built, so it can refuse to delete this one. No
+  // deletion path exists yet either way; this just marks intent up front.
+  default Boolean @default(false)
 
   englishDescription String
   tagalogDescription String
@@ -646,7 +727,10 @@ model DimFieldConditionOperator {
   id          String @id @default(uuid())
   englishName String @db.VarChar(255)
   tagalogName String @db.VarChar(255)
-  value       String @unique @db.VarChar(255)
+  // NOT globally unique — the same operator value (e.g. "EQUALS") is legitimately reused
+  // across many input types (TEXT, NUMBER, SINGLE_SELECT, ...). Unique per (value,
+  // fieldInputTypeId) instead — see fieldConfigSeeder.ts's upsert, keyed on that pair.
+  value String @db.VarChar(255)
 
   fieldInputTypeId String
   fieldInputType   DimFieldInputType @relation(fields: [fieldInputTypeId], references: [id])
@@ -665,6 +749,7 @@ model DimFieldConditionOperator {
 
   deletedAt DateTime?
 
+  @@unique([value, fieldInputTypeId])
   @@map("dim_field_condition_operator")
 }
 
@@ -745,8 +830,12 @@ model FctDynamicFieldCondition {
 
   benefitFieldConditions DimBenefitFieldCondition[] @relation("BFC_FDC")
 
-  fieldConditionId String?
-  fieldCondition   DimBenefitFieldCondition? @relation("FDC_BFC", fields: [fieldConditionId], references: [id])
+  // Which field's answer this leaf actually evaluates. Null = self-referential — the
+  // enclosing FctDynamicRuleGroup's own field (today's implicit, only behavior; every
+  // existing row is null). Non-null lets a leaf reference a DIFFERENT field's answer,
+  // e.g. a field's own show/hide condition depending on another field.
+  conditionFieldId String?
+  conditionField   DimField? @relation("FDC_DF", fields: [conditionFieldId], references: [id])
 
   conditionFieldValue Json @db.Json
 
@@ -762,4 +851,24 @@ model FctDynamicFieldCondition {
   deletedAt DateTime?
 
   @@map("fct_dynamic_field_condition")
+}
+
+// Standalone reference table — exact shape of backend/data/countries.json, not a
+// DimField-scoped option list. It backs the Nationality AND Country fields' options from
+// one shared dataset (see fieldOptions.service.ts's fetchFieldOptions), which a per-field
+// DimFieldOption row can't do since it only ever belongs to a single fieldId.
+model DimCountries {
+  id String @id @default(uuid())
+
+  numCode     String @db.VarChar(10)
+  alpha2Code  String @unique @db.VarChar(2)
+  alpha3Code  String @unique @db.VarChar(3)
+  enShortName String @db.VarChar(255)
+  nationality String @db.VarChar(255)
+
+  // Reverse side of DimField.countries — which field(s) this row is wired to as an
+  // options source (Nationality, Country, or both at once).
+  fields DimField[]
+
+  @@map("dim_countries")
 }

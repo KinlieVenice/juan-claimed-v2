@@ -1,86 +1,125 @@
 import * as React from "react";
-import { Gift, Pencil, Plus } from "lucide-react";
+import { Gift, Plus, Pencil, Eye } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { getBenefits } from "@/services/benefits.service";
+import { formatBenefitScope } from "@/lib/benefit-scope";
 import type { FctBenefit } from "@/types/domain";
 import { BenefitFormModal } from "@/components/benefits/BenefitFormModal";
-import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 
 export function BenefitsAdminPage() {
+  const { token, role } = useAuth();
+  const canManage = role === "SUPERADMIN" || role === "AGENT";
+
   const [benefits, setBenefits] = React.useState<FctBenefit[] | null>(null);
   const [modalOpen, setModalOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<FctBenefit | undefined>(undefined);
+  const [editing, setEditing] = React.useState<FctBenefit | null>(null);
+  const [viewOnly, setViewOnly] = React.useState(false);
 
   const load = React.useCallback(() => {
-    getBenefits().then(setBenefits);
-  }, []);
+    if (!token) return;
+    getBenefits(token).then(setBenefits);
+  }, [token]);
 
   React.useEffect(() => {
     load();
   }, [load]);
 
   const openCreate = () => {
-    setEditing(undefined);
+    setEditing(null);
+    setViewOnly(false);
     setModalOpen(true);
   };
 
   const openEdit = (benefit: FctBenefit) => {
     setEditing(benefit);
+    setViewOnly(false);
     setModalOpen(true);
   };
+
+  const openView = (benefit: FctBenefit) => {
+    setEditing(benefit);
+    setViewOnly(true);
+    setModalOpen(true);
+  };
+
+  const columns: DataTableColumn<FctBenefit>[] = [
+    {
+      key: "name",
+      header: "Name",
+      cell: (b) => <span className="font-medium text-foreground">{b.name}</span>,
+    },
+    {
+      key: "scope",
+      header: "Scope",
+      cell: (b) => <Badge variant={b.isNationwide ? "success" : "outline"}>{formatBenefitScope(b)}</Badge>,
+    },
+    {
+      key: "requirements",
+      header: "Requirements",
+      cell: (b) => <span className="text-muted-foreground">{b.benefitRequirements.length}</span>,
+    },
+    {
+      key: "utilizations",
+      header: "Utilization Tips",
+      cell: (b) => <span className="text-muted-foreground">{b.benefitUtilizations.length}</span>,
+    },
+    {
+      key: "howToApply",
+      header: "How to Apply",
+      cell: (b) => <span className="text-muted-foreground">{b.benefitHowToApplies.length}</span>,
+    },
+    {
+      key: "actions",
+      header: "",
+      width: "80px",
+      cellClassName: "text-right",
+      cell: (b) => (
+        <div className="flex justify-end gap-1">
+          {canManage && (
+            <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(b)} title="Edit">
+              <Pencil className="size-4" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="size-8" onClick={() => openView(b)} title="View">
+            <Eye className="size-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Benefit</h1>
+          <h1 className="text-xl font-bold text-foreground">Benefits</h1>
           <p className="text-sm text-muted-foreground">Programs applicants can qualify for, with their eligibility rules.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus /> Add Benefit
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={openCreate}>
+            <Plus /> Add Benefit
+          </Button>
+        )}
       </div>
 
-      {benefits === null ? (
-        <div className="h-40 animate-pulse rounded-xl bg-muted/60" />
-      ) : benefits.length === 0 ? (
-        <EmptyState icon={Gift} title="No Benefits" description="Create your first benefit to get started." action={{ label: "Add Benefit", onClick: openCreate }} />
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Requirements</TableHead>
-                <TableHead>Utilization Tips</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {benefits.map((b) => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-medium text-foreground">{b.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={b.isNationwide ? "success" : "outline"}>{b.isNationwide ? "Nationwide" : b.scopeName}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{b.benefitRequirements.length}</TableCell>
-                  <TableCell className="text-muted-foreground">{b.benefitUtilizations.length}</TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(b)}>
-                      <Pencil className="size-3.5" /> Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={benefits}
+        rowKey={(b) => b.id}
+        searchText={(b) => b.name}
+        searchPlaceholder="Search benefits…"
+        empty={{
+          icon: Gift,
+          title: "No Benefits",
+          description: "Create your first benefit to get started.",
+          ...(canManage ? { action: { label: "Add Benefit", onClick: openCreate } } : {}),
+        }}
+      />
 
-      <BenefitFormModal open={modalOpen} onOpenChange={setModalOpen} benefit={editing} onSaved={load} />
+      <BenefitFormModal open={modalOpen} onOpenChange={setModalOpen} benefit={editing} viewOnly={viewOnly} onSaved={load} />
     </div>
   );
 }

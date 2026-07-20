@@ -15,13 +15,13 @@ export const fetchGroupById = async (id: string) => {
   return group;
 };
 
-export const addGroup = async (data: CreateUpdateGroupDto) => {
+export const addGroup = async (data: CreateUpdateGroupDto, actingUser: any) => {
   return await prisma.dimGroup.create({
-    data,
+    data: { ...data, createdById: actingUser.id },
   });
 };
 
-export const editGroup = async (id: string, data: CreateUpdateGroupDto) => {
+export const editGroup = async (id: string, data: CreateUpdateGroupDto, actingUser: any) => {
   const existingGroup = await prisma.dimGroup.findUnique({ where: { id } });
 
   if (!existingGroup) {
@@ -30,6 +30,6 @@ export const editGroup = async (id: string, data: CreateUpdateGroupDto) => {
 
   return await prisma.dimGroup.update({
     where: { id },
-    data,
+    data: { ...data, updatedById: actingUser.id },
   });
 };

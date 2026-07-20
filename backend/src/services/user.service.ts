@@ -2,7 +2,7 @@ import { prisma } from "../utils/prisma.js";
 import { UserRole } from "../generated/prisma/client.js";
 import type { AssignRoleDto, CreateUserDto } from "../requests/user.request.js";
 import { validateRoleConfig } from "./userAccess.service.js";
-import { hashPassword, omitPassHash } from "../utils/password.js";
+import { hashPassword, omitPassHash, generateTempPassword } from "../utils/password.js";
 
 export const fetchAllUsers = async () => {
   const users = await prisma.dimUser.findMany({
@@ -95,6 +95,7 @@ export const createUser = async (data: CreateUserDto, actingUser: any) => {
 export const setUserActive = async (id: string, active: boolean, actingUser: any) => {
   const user = await prisma.dimUser.findFirst({ where: { id, deletedAt: null } });
   if (!user) throw new Error("USER_NOT_FOUND");
+  if (user.role === "SUPERADMIN") throw new Error("SUPERADMIN_PROTECTED");
 
   const updatedUser = await prisma.dimUser.update({
     where: { id },
@@ -103,6 +104,28 @@ export const setUserActive = async (id: string, active: boolean, actingUser: any
   });
 
   return omitPassHash(updatedUser);
+};
+
+// Generates a fresh temporary password, hashes it, and flags the account so the next
+// successful login must be followed by a real password change (POST
+// /api/auth/change-password) before anything else — enforced on the frontend, not here.
+// The plaintext is returned exactly once; it is never stored or retrievable again.
+export const resetUserPassword = async (id: string, actingUser: any) => {
+  const user = await prisma.dimUser.findFirst({ where: { id, deletedAt: null } });
+  if (!user) throw new Error("USER_NOT_FOUND");
+  if (user.role === "USER") throw new Error("USER_HAS_NO_PASSWORD");
+  if (user.role === "SUPERADMIN") throw new Error("SUPERADMIN_PROTECTED");
+
+  const temporaryPassword = generateTempPassword();
+  const passHash = await hashPassword(temporaryPassword);
+
+  const updatedUser = await prisma.dimUser.update({
+    where: { id },
+    data: { passHash, forceResetPassword: true, updatedById: actingUser.id },
+    include: { scope: true, group: true },
+  });
+
+  return { user: omitPassHash(updatedUser), temporaryPassword };
 };
 
 export const deleteUser = async (id: string, actingUser: any) => {

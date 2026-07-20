@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, ClipboardList, Lightbulb, MapPin, ShieldCheck } from "lucide-react";
 import { getBenefitById } from "@/services/benefits.service";
 import type { FctBenefit } from "@/types/domain";
+import { formatBenefitScope } from "@/lib/benefit-scope";
 import { RequirementAccordion } from "@/components/benefits/RequirementAccordion";
 import { UtilizationAccordion } from "@/components/benefits/UtilizationAccordion";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,9 @@ export function BenefitDetailsPage() {
 
   React.useEffect(() => {
     if (!id) return;
-    getBenefitById(id).then((b) => setBenefit(b ?? null));
+    getBenefitById(id)
+      .then(setBenefit)
+      .catch(() => setBenefit(null));
   }, [id]);
 
   if (benefit === undefined) {
@@ -26,7 +29,7 @@ export function BenefitDetailsPage() {
   }
 
   const stats = [
-    { icon: MapPin, label: benefit.isNationwide ? "Nationwide" : benefit.scopeName },
+    { icon: MapPin, label: formatBenefitScope(benefit) },
     { icon: ShieldCheck, label: "eGovPH Verified" },
     { icon: ClipboardList, label: `${benefit.benefitRequirements.length} Requirement${benefit.benefitRequirements.length === 1 ? "" : "s"}` },
     { icon: Lightbulb, label: `${benefit.benefitUtilizations.length} Usage Tip${benefit.benefitUtilizations.length === 1 ? "" : "s"}` },

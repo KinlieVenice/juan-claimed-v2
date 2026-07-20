@@ -27,6 +27,11 @@ services:
       BACKEND_PORT: 4000
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      JWT_SECRET: ${JWT_SECRET}
+      EGOV_PARTNER_CODE: ${EGOV_PARTNER_CODE}
+      EGOV_PARTNER_SECRET: ${EGOV_PARTNER_SECRET}
+      BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN: ${BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -42,6 +47,9 @@ services:
     environment:
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
+      # Client IDs are meant to be public (unlike JWT_SECRET/partner_secret) — safe to
+      # expose to the browser bundle via Vite's VITE_ prefix convention.
+      VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     volumes:
       - ./frontend:/app
       - /app/node_modules

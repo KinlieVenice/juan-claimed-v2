@@ -4,6 +4,8 @@ import {
   resolvePsgcCodesForUser,
 } from "./benefitLocation.service.js";
 import { getPsgcLocation } from "./psgc.service.js";
+import { fetchBenefitRuleTree } from "./benefitRuleGroup.service.js";
+import { ATTACHMENT_ENTITY_TYPES } from "../constants/attachmentEntityTypes.js";
 
 // See benefitLocation.service.ts — same optional-transaction-client pattern.
 type Db = typeof prisma | Prisma.TransactionClient;
@@ -64,15 +66,39 @@ const enrichBenefitPsgcCodes = <T extends { benefitPsgcCodes: { psgcCode: string
   })),
 });
 
+// Requirements/utilizations/how-to-applies included for their COUNTS on the admin list —
+// full attachment hydration (a separate, non-relational lookup against the polymorphic
+// FctAttachment table) is only worth doing for a single benefit, see getBenefitById below.
 export const listBenefits = async () => {
   return prisma.fctBenefit.findMany({
     where: { deletedAt: null },
     include: {
       benefitPsgcCodes: { where: { deletedAt: null }, include: { scope: true } },
       benefitGroups: { where: { deletedAt: null }, include: { group: true } },
+      benefitRequirements: { where: { deletedAt: null } },
+      benefitUtilizations: { where: { deletedAt: null } },
+      benefitHowToApplies: { where: { deletedAt: null } },
     },
     orderBy: { createdAt: "desc" },
   });
+};
+
+// FctAttachment isn't a direct Prisma relation on Requirement/Utilization/HowToApply (it's
+// joined polymorphically via entityType/entityId — see constants/attachmentEntityTypes.ts),
+// so hydrating it is a manual lookup+group-by rather than a Prisma `include`.
+const hydrateAttachments = async <T extends { id: string }>(rows: T[], entityType: string): Promise<(T & { attachments: any[] })[]> => {
+  if (rows.length === 0) return [];
+  const attachments = await prisma.fctAttachment.findMany({
+    where: { entityType, entityId: { in: rows.map((r) => r.id) }, deletedAt: null },
+  });
+  const byEntityId = new Map<string, any[]>();
+  for (const attachment of attachments) {
+    const bucket = byEntityId.get(attachment.entityId);
+    const serialized = { ...attachment, fileSize: attachment.fileSize.toString() };
+    if (bucket) bucket.push(serialized);
+    else byEntityId.set(attachment.entityId, [serialized]);
+  }
+  return rows.map((row) => ({ ...row, attachments: byEntityId.get(row.id) ?? [] }));
 };
 
 export const getBenefitById = async (id: string) => {
@@ -81,6 +107,9 @@ export const getBenefitById = async (id: string) => {
     include: {
       benefitPsgcCodes: { where: { deletedAt: null }, include: { scope: true } },
       benefitGroups: { where: { deletedAt: null }, include: { group: true } },
+      benefitRequirements: { where: { deletedAt: null } },
+      benefitUtilizations: { where: { deletedAt: null } },
+      benefitHowToApplies: { where: { deletedAt: null } },
     },
   });
   if (!benefit) throw new Error("BENEFIT_NOT_FOUND");
@@ -96,7 +125,20 @@ export const getBenefitById = async (id: string) => {
     ).filter((entry): entry is [string, string] => entry[1] !== null),
   );
 
-  return enrichBenefitPsgcCodes(benefit, locationNameMap);
+  const [eligibilityTree, requirements, utilizations, howToApplies] = await Promise.all([
+    fetchBenefitRuleTree(id),
+    hydrateAttachments(benefit.benefitRequirements, ATTACHMENT_ENTITY_TYPES.REQUIREMENT),
+    hydrateAttachments(benefit.benefitUtilizations, ATTACHMENT_ENTITY_TYPES.UTILIZATION),
+    hydrateAttachments(benefit.benefitHowToApplies, ATTACHMENT_ENTITY_TYPES.HOW_TO_APPLY),
+  ]);
+
+  return {
+    ...enrichBenefitPsgcCodes(benefit, locationNameMap),
+    benefitRequirements: requirements,
+    benefitUtilizations: utilizations,
+    benefitHowToApplies: howToApplies,
+    eligibilityTree,
+  };
 };
 
 export const createBenefit = async (data: any, user: any, db: Db = prisma) => {

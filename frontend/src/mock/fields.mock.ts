@@ -62,6 +62,7 @@ export const conditionOperators: DimFieldConditionOperator[] = [
 export const hierarchies: DimFieldHierarchy[] = [
   {
     id: "hier-location",
+    key: null,
     englishName: "Philippine Location",
     tagalogName: "Lokasyon sa Pilipinas",
     fieldHierarchyLevels: [
@@ -85,37 +86,45 @@ export const hierarchies: DimFieldHierarchy[] = [
 
 // --- Fields ---------------------------------------------------------------
 
-const f = (partial: Omit<DimField, "fieldInputType">): DimField => ({
+const f = (
+  partial: Omit<DimField, "fieldInputType" | "configJson" | "dynamicCondition" | "eGovField" | "anchorFieldId"> & { eGovField?: boolean; anchorFieldId?: string | null },
+): DimField => ({
   ...partial,
+  // Mirrors the real seeder's rule: eGovField defaults to whatever `default` is, unless
+  // explicitly overridden (e.g. a default-but-not-eGov field like Occupation).
+  eGovField: partial.eGovField ?? partial.default,
+  anchorFieldId: partial.anchorFieldId ?? null,
+  configJson: null,
+  dynamicCondition: null,
   fieldInputType: Object.values(inputTypes).find((t) => t.id === partial.fieldInputTypeId)!,
 });
 
 export const fields: DimField[] = [
   // PROFILE fields — GLOBAL, not used as eligibility comparators, eGovPH-synced (locked)
-  f({ id: "fld-first-name", key: "FIRST_NAME", englishName: "First Name", tagalogName: "Pangalan", description: "Legal first name.", classification: "GLOBAL", isProfileField: true, default: true, required: true, sortOrder: 0, fieldInputTypeId: inputTypes.TEXT.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-last-name", key: "LAST_NAME", englishName: "Last Name", tagalogName: "Apelyido", description: "Legal last name.", classification: "GLOBAL", isProfileField: true, default: true, required: true, sortOrder: 1, fieldInputTypeId: inputTypes.TEXT.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-address", key: "FULL_ADDRESS", englishName: "Full Address", tagalogName: "Buong Address", description: "Street, building, unit number.", classification: "GLOBAL", isProfileField: true, default: true, required: true, sortOrder: 2, fieldInputTypeId: inputTypes.TEXT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-first-name", key: "FIRST_NAME", englishName: "First Name", tagalogName: "Pangalan", englishDescription: "Legal first name.", tagalogDescription: "Legal first name.", classification: "GLOBAL", isProfileField: true, default: true, required: true, sortOrder: 0, fieldInputTypeId: inputTypes.TEXT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-last-name", key: "LAST_NAME", englishName: "Last Name", tagalogName: "Apelyido", englishDescription: "Legal last name.", tagalogDescription: "Legal last name.", classification: "GLOBAL", isProfileField: true, default: true, required: true, sortOrder: 1, fieldInputTypeId: inputTypes.TEXT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-address", key: "FULL_ADDRESS", englishName: "Full Address", tagalogName: "Buong Address", englishDescription: "Street, building, unit number.", tagalogDescription: "Street, building, unit number.", classification: "GLOBAL", isProfileField: true, default: true, required: true, sortOrder: 2, fieldInputTypeId: inputTypes.TEXT.id, parentFieldId: null, fieldHierarchyId: null }),
 
   // GLOBAL comparator fields
-  f({ id: "fld-dob", key: "DATE_OF_BIRTH", englishName: "Date of Birth", tagalogName: "Petsa ng Kapanganakan", description: "Used to compute age-based eligibility.", classification: "GLOBAL", default: true, required: true, sortOrder: 3, fieldInputTypeId: inputTypes.DATE.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-income", key: "MONTHLY_HOUSEHOLD_INCOME", englishName: "Monthly Household Income", tagalogName: "Buwanang Kita ng Sambahayan", description: "Combined household income per month.", classification: "GLOBAL", default: false, required: true, sortOrder: 4, fieldInputTypeId: inputTypes.MONEY.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-household-size", key: "HOUSEHOLD_SIZE", englishName: "Household Size", tagalogName: "Laki ng Sambahayan", description: "Number of people in the household.", classification: "GLOBAL", default: false, required: true, sortOrder: 5, fieldInputTypeId: inputTypes.NUMBER.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-citizen", key: "IS_FILIPINO_CITIZEN", englishName: "Is Filipino Citizen", tagalogName: "Mamamayang Pilipino", description: "Confirms Filipino citizenship.", classification: "GLOBAL", default: true, required: true, sortOrder: 6, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-location", key: "RESIDENCE_LOCATION", englishName: "Residence Location", tagalogName: "Lugar ng Tirahan", description: "Region / city / barangay of residence.", classification: "GLOBAL", default: true, required: true, sortOrder: 7, fieldInputTypeId: inputTypes.HIERARCHY_SELECT.id, parentFieldId: null, fieldHierarchyId: "hier-location" }),
-  f({ id: "fld-employment", key: "EMPLOYMENT_STATUS", englishName: "Employment Status", tagalogName: "Katayuan sa Trabaho", description: "Current employment status.", classification: "GLOBAL", default: false, required: true, sortOrder: 8, fieldInputTypeId: inputTypes.SINGLE_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-civil-status", key: "CIVIL_STATUS", englishName: "Civil Status", tagalogName: "Katayuang Sibil", description: "Current civil status.", classification: "GLOBAL", default: false, required: true, sortOrder: 9, fieldInputTypeId: inputTypes.SINGLE_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-pwd", key: "HAS_PWD_ID", englishName: "Has PWD ID", tagalogName: "May PWD ID", description: "Holds a valid Person with Disability ID.", classification: "GLOBAL", default: false, required: false, sortOrder: 10, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-solo-parent", key: "IS_SOLO_PARENT", englishName: "Is Solo Parent", tagalogName: "Solo Parent", description: "Holds a valid Solo Parent ID.", classification: "GLOBAL", default: false, required: false, sortOrder: 11, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-vulnerability", key: "VULNERABILITY_TAGS", englishName: "Vulnerability Tags", tagalogName: "Mga Katangian", description: "Any additional vulnerability classifications.", classification: "GLOBAL", default: false, required: false, sortOrder: 12, fieldInputTypeId: inputTypes.MULTI_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-dob", key: "DATE_OF_BIRTH", englishName: "Date of Birth", tagalogName: "Petsa ng Kapanganakan", englishDescription: "Used to compute age-based eligibility.", tagalogDescription: "Used to compute age-based eligibility.", classification: "GLOBAL", default: true, required: true, sortOrder: 3, fieldInputTypeId: inputTypes.DATE.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-income", key: "MONTHLY_HOUSEHOLD_INCOME", englishName: "Monthly Household Income", tagalogName: "Buwanang Kita ng Sambahayan", englishDescription: "Combined household income per month.", tagalogDescription: "Combined household income per month.", classification: "GLOBAL", default: false, required: true, sortOrder: 4, fieldInputTypeId: inputTypes.MONEY.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-household-size", key: "HOUSEHOLD_SIZE", englishName: "Household Size", tagalogName: "Laki ng Sambahayan", englishDescription: "Number of people in the household.", tagalogDescription: "Number of people in the household.", classification: "GLOBAL", default: false, required: true, sortOrder: 5, fieldInputTypeId: inputTypes.NUMBER.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-citizen", key: "IS_FILIPINO_CITIZEN", englishName: "Is Filipino Citizen", tagalogName: "Mamamayang Pilipino", englishDescription: "Confirms Filipino citizenship.", tagalogDescription: "Confirms Filipino citizenship.", classification: "GLOBAL", default: true, required: true, sortOrder: 6, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-location", key: "RESIDENCE_LOCATION", englishName: "Residence Location", tagalogName: "Lugar ng Tirahan", englishDescription: "Region / city / barangay of residence.", tagalogDescription: "Region / city / barangay of residence.", classification: "GLOBAL", default: true, required: true, sortOrder: 7, fieldInputTypeId: inputTypes.HIERARCHY_SELECT.id, parentFieldId: null, fieldHierarchyId: "hier-location" }),
+  f({ id: "fld-employment", key: "EMPLOYMENT_STATUS", englishName: "Employment Status", tagalogName: "Katayuan sa Trabaho", englishDescription: "Current employment status.", tagalogDescription: "Current employment status.", classification: "GLOBAL", default: false, required: true, sortOrder: 8, fieldInputTypeId: inputTypes.SINGLE_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-civil-status", key: "CIVIL_STATUS", englishName: "Civil Status", tagalogName: "Katayuang Sibil", englishDescription: "Current civil status.", tagalogDescription: "Current civil status.", classification: "GLOBAL", default: false, required: true, sortOrder: 9, fieldInputTypeId: inputTypes.SINGLE_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-pwd", key: "HAS_PWD_ID", englishName: "Has PWD ID", tagalogName: "May PWD ID", englishDescription: "Holds a valid Person with Disability ID.", tagalogDescription: "Holds a valid Person with Disability ID.", classification: "GLOBAL", default: false, required: false, sortOrder: 10, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-solo-parent", key: "IS_SOLO_PARENT", englishName: "Is Solo Parent", tagalogName: "Solo Parent", englishDescription: "Holds a valid Solo Parent ID.", tagalogDescription: "Holds a valid Solo Parent ID.", classification: "GLOBAL", default: false, required: false, sortOrder: 11, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-vulnerability", key: "VULNERABILITY_TAGS", englishName: "Vulnerability Tags", tagalogName: "Mga Katangian", englishDescription: "Any additional vulnerability classifications.", tagalogDescription: "Any additional vulnerability classifications.", classification: "GLOBAL", default: false, required: false, sortOrder: 12, fieldInputTypeId: inputTypes.MULTI_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
 
   // FOLLOW_UP fields
-  f({ id: "fld-unemployment-duration", key: "UNEMPLOYMENT_DURATION", englishName: "Unemployment Duration", tagalogName: "Tagal ng Pagkawala ng Trabaho", description: "How long you've been unemployed.", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 13, fieldInputTypeId: inputTypes.DURATION.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-disability-type", key: "DISABILITY_TYPE", englishName: "Disability Type", tagalogName: "Uri ng Kapansanan", description: "Primary disability classification.", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 14, fieldInputTypeId: inputTypes.SINGLE_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-unemployment-duration", key: "UNEMPLOYMENT_DURATION", englishName: "Unemployment Duration", tagalogName: "Tagal ng Pagkawala ng Trabaho", englishDescription: "How long you've been unemployed.", tagalogDescription: "How long you've been unemployed.", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 13, fieldInputTypeId: inputTypes.DURATION.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-disability-type", key: "DISABILITY_TYPE", englishName: "Disability Type", tagalogName: "Uri ng Kapansanan", englishDescription: "Primary disability classification.", tagalogDescription: "Primary disability classification.", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 14, fieldInputTypeId: inputTypes.SINGLE_SELECT.id, parentFieldId: null, fieldHierarchyId: null }),
 
   // REPEATER_GROUP — Dependents, with 2 subfields
-  f({ id: "fld-dependents", key: "DEPENDENTS", englishName: "Dependents", tagalogName: "Mga Dependent", description: "List each dependent.", classification: "FOLLOW_UP", default: false, required: false, sortOrder: 15, fieldInputTypeId: inputTypes.REPEATER_GROUP.id, parentFieldId: null, fieldHierarchyId: null }),
-  f({ id: "fld-dependent-dob", key: "DEPENDENT_DATE_OF_BIRTH", englishName: "Dependent's Date of Birth", tagalogName: "Petsa ng Kapanganakan ng Dependent", description: "", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 0, fieldInputTypeId: inputTypes.DATE.id, parentFieldId: "fld-dependents", fieldHierarchyId: null }),
-  f({ id: "fld-dependent-enrolled", key: "DEPENDENT_ENROLLED", englishName: "Currently Enrolled in School", tagalogName: "Kasalukuyang Nag-aaral", description: "", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 1, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: "fld-dependents", fieldHierarchyId: null }),
+  f({ id: "fld-dependents", key: "DEPENDENTS", englishName: "Dependents", tagalogName: "Mga Dependent", englishDescription: "List each dependent.", tagalogDescription: "List each dependent.", classification: "FOLLOW_UP", default: false, required: false, sortOrder: 15, fieldInputTypeId: inputTypes.REPEATER_GROUP.id, parentFieldId: null, fieldHierarchyId: null }),
+  f({ id: "fld-dependent-dob", key: "DEPENDENT_DATE_OF_BIRTH", englishName: "Dependent's Date of Birth", tagalogName: "Petsa ng Kapanganakan ng Dependent", englishDescription: "", tagalogDescription: "", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 0, fieldInputTypeId: inputTypes.DATE.id, parentFieldId: "fld-dependents", fieldHierarchyId: null }),
+  f({ id: "fld-dependent-enrolled", key: "DEPENDENT_ENROLLED", englishName: "Currently Enrolled in School", tagalogName: "Kasalukuyang Nag-aaral", englishDescription: "", tagalogDescription: "", classification: "FOLLOW_UP", default: false, required: true, sortOrder: 1, fieldInputTypeId: inputTypes.BOOLEAN.id, parentFieldId: "fld-dependents", fieldHierarchyId: null }),
 ];
 
 export const fieldOptions: DimFieldOption[] = [

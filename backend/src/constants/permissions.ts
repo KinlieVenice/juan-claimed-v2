@@ -19,10 +19,24 @@ export const PERMISSIONS = {
   EDIT_BENEFIT_UTILIZATIONS: [UserRole.SUPERADMIN, UserRole.AGENT],
   DELETE_BENEFIT_UTILIZATIONS: [UserRole.SUPERADMIN, UserRole.AGENT],
 
+  CREATE_BENEFIT_HOW_TO_APPLIES: [UserRole.SUPERADMIN, UserRole.AGENT],
+  EDIT_BENEFIT_HOW_TO_APPLIES: [UserRole.SUPERADMIN, UserRole.AGENT],
+  DELETE_BENEFIT_HOW_TO_APPLIES: [UserRole.SUPERADMIN, UserRole.AGENT],
+
   CREATE_BENEFIT_ATTACHMENTS: [UserRole.SUPERADMIN, UserRole.AGENT],
   EDIT_BENEFIT_ATTACHMENTS: [UserRole.SUPERADMIN, UserRole.AGENT],
   DELETE_BENEFIT_ATTACHMENTS: [UserRole.SUPERADMIN, UserRole.AGENT],
 
   // Everyone (User, Agent, Superadmin)
   PARTICIPATE: [UserRole.SUPERADMIN, UserRole.AGENT, UserRole.USER],
+
+  // Fields — GET stays readable by everyone (applicants need it to render the form).
+  // Create/edit is further restricted by classification via
+  // requireFieldClassificationRole (Agent may only author Follow-Up fields) — this
+  // list alone only establishes "Superadmin or Agent may attempt it at all".
+  VIEW_FIELDS: [UserRole.SUPERADMIN, UserRole.AGENT, UserRole.USER],
+  CREATE_FIELDS: [UserRole.SUPERADMIN, UserRole.AGENT],
+  EDIT_FIELDS: [UserRole.SUPERADMIN, UserRole.AGENT],
+  DELETE_FIELDS: [UserRole.SUPERADMIN],
+  MANAGE_FIELD_HIERARCHIES: [UserRole.SUPERADMIN, UserRole.AGENT],
 };

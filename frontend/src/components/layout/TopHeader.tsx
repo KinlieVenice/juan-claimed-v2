@@ -1,8 +1,9 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { ShieldCheck, LogOut, UserRound } from "lucide-react";
-import { useAuth } from "@/lib/mock-auth";
+import { ShieldCheck, LogOut, UserRound, LogIn } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +20,7 @@ const USER_NAV = [
 ];
 
 export function TopHeader() {
-  const { role, user, setRole } = useAuth();
+  const { role, user, logout } = useAuth();
   const navigate = useNavigate();
 
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}` : "?";
@@ -71,13 +72,15 @@ export function TopHeader() {
               <DropdownMenuItem onClick={() => navigate("/profile")}>
                 <UserRound /> Profile
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setRole("GUEST")}>
+              <DropdownMenuItem variant="destructive" onClick={logout}>
                 <LogOut /> Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <span className="text-xs font-medium text-muted-foreground">eGovPH Integrated</span>
+          <Button size="sm" variant="outline" className="rounded-full" onClick={() => navigate("/login")}>
+            <LogIn className="size-3.5" /> Log In
+          </Button>
         )}
       </div>
     </header>

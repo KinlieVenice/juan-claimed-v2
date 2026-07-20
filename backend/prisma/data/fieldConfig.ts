@@ -35,7 +35,7 @@ export const operatorsData: SeedOperator[] = [
   { inputTypeValue: 'TEXT', value: 'CONTAINS_SUBSTRING', englishName: 'Contains', tagalogName: 'Naglalaman ng' },
   { inputTypeValue: 'TEXT', value: 'NOT_CONTAINS_SUBSTRING', englishName: 'Does Not Contain', tagalogName: 'Hindi Naglalaman ng' },
   { inputTypeValue: 'TEXT', value: 'IS_EMPTY', englishName: 'Is Empty', tagalogName: 'Ay Walang Laman' },
-  { inputTypeValue: 'TEXT', value: 'IS_NOT_EMPTY', englishName: 'Is Not Empty', tagalogName: 'May Laman' },
+  { inputTypeValue: 'TEXT', value: 'IS_NOT_EMPTY', englishName: 'Is Not Empty', tagalogName: 'Ay May Laman' },
 
   // NUMBER OPERATORS
   { inputTypeValue: 'NUMBER', value: 'EQUALS', englishName: 'Is Equal To', tagalogName: 'Ay Katumbas ng' },
@@ -93,27 +93,47 @@ export const operatorsData: SeedOperator[] = [
   // SINGLE_SELECT OPERATORS
   { inputTypeValue: 'SINGLE_SELECT', value: 'EQUALS', englishName: 'Is Exactly', tagalogName: 'Ay Eksaktong' },
   { inputTypeValue: 'SINGLE_SELECT', value: 'NOT_EQUALS', englishName: 'Is Not Exactly', tagalogName: 'Ay Hindi Eksaktong' },
+  { inputTypeValue: 'SINGLE_SELECT', value: 'IN', englishName: 'Is One Of', tagalogName: 'Ay Alinman Sa' },
+  { inputTypeValue: 'SINGLE_SELECT', value: 'NOT_IN', englishName: 'Is None Of', tagalogName: 'Ay Hindi Alinman Sa' },
+  { inputTypeValue: 'SINGLE_SELECT', value: 'IS_EMPTY', englishName: 'Is Empty', tagalogName: 'Ay Walang Laman' },
+  { inputTypeValue: 'SINGLE_SELECT', value: 'IS_NOT_EMPTY', englishName: 'Is Not Empty', tagalogName: 'Ay May Laman' },
 
   // MULTI_SELECT OPERATORS
-  { inputTypeValue: 'MULTI_SELECT', value: 'EQUALS', englishName: 'Is Exactly', tagalogName: 'Ay Eksaktong' },
-  { inputTypeValue: 'MULTI_SELECT', value: 'NOT_EQUALS', englishName: 'Is Not Exactly', tagalogName: 'Ay Hindi Eksaktong' },
-  { inputTypeValue: 'MULTI_SELECT', value: 'IN', englishName: 'Is One Of', tagalogName: 'Ay Alinman Sa' },
-  { inputTypeValue: 'MULTI_SELECT', value: 'NOT_IN', englishName: 'Is None Of', tagalogName: 'Ay Hindi Alinman Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'HAS_ANY', englishName: 'Contains Any Of', tagalogName: 'Naglalaman ng Alinman Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'HAS_ALL', englishName: 'Contains All Of', tagalogName: 'Naglalaman ng Lahat Ng' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'HAS_NONE', englishName: 'Contains None Of', tagalogName: 'Walang Lalamanin Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'IS_SUBSET_OF', englishName: 'Only Contains Items From', tagalogName: 'Mula Lamang Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'IS_NOT_SUBSET_OF', englishName: 'Contains Items Outside Of', tagalogName: 'May Kasamang Labas Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'EQUALS', englishName: 'Exactly Matches', tagalogName: 'Eksaktong Tumutugma Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'NOT_EQUALS', englishName: 'Is Not Exactly', tagalogName: 'Hindi Eksaktong Tumutugma Sa' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'IS_EMPTY', englishName: 'Is Empty', tagalogName: 'Ay Walang Laman' },
+  { inputTypeValue: 'MULTI_SELECT', value: 'IS_NOT_EMPTY', englishName: 'Is Not Empty', tagalogName: 'Ay May Laman' },
 
-  // HIERARCHY_SELECT OPERATORS
-  { inputTypeValue: 'HIERARCHY_SELECT', value: 'BELONGS_TO', englishName: 'Belongs Under', tagalogName: 'Kabilang sa Ilalim ng' },
-  { inputTypeValue: 'HIERARCHY_SELECT', value: 'EQUALS', englishName: 'Is Exactly', tagalogName: 'Ay Eksaktong' },
-  { inputTypeValue: 'HIERARCHY_SELECT', value: 'NOT_EQUALS', englishName: 'Is Not Exactly', tagalogName: 'Ay Hindi Eksaktong' },
-  { inputTypeValue: 'HIERARCHY_SELECT', value: 'IN', englishName: 'Is One Of', tagalogName: 'Ay Alinman Sa' },
+  // HIERARCHY_SELECT OPERATORS — BELONGS_TO/NOT_BELONGS_TO are multiselect (a SET of
+  // ancestor targets, each branch stoppable at any depth — see condition.util.ts's
+  // evaluateHierarchySelect). EQUALS/NOT_EQUALS/IN/NOT_IN were removed as redundant once
+  // BELONGS_TO could hold a set — they evaluated identically, just named differently.
+  { inputTypeValue: 'HIERARCHY_SELECT', value: 'BELONGS_TO', englishName: 'Is Within', tagalogName: 'Ay Kabilang sa' },
+  { inputTypeValue: 'HIERARCHY_SELECT', value: 'NOT_BELONGS_TO', englishName: 'Is Not Within', tagalogName: 'Ay Hindi Kabilang sa' },
   { inputTypeValue: 'HIERARCHY_SELECT', value: 'IS_EMPTY', englishName: 'Is Empty', tagalogName: 'Ay Walang Laman' },
-  { inputTypeValue: 'HIERARCHY_SELECT', value: 'IS_NOT_EMPTY', englishName: 'Is Not Empty', tagalogName: 'May Laman' },
+  { inputTypeValue: 'HIERARCHY_SELECT', value: 'IS_NOT_EMPTY', englishName: 'Is Not Empty', tagalogName: 'Ay May Laman' },
 
   // REPEATER_GROUP OPERATORS
   { inputTypeValue: 'REPEATER_GROUP', value: 'COUNT_EQUALS', englishName: 'Count Is Equal To', tagalogName: 'Bilang ay Katumbas ng' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'COUNT_GREATER_THAN', englishName: 'Count Is Greater Than', tagalogName: 'Bilang ay Higit sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'COUNT_LESS_THAN', englishName: 'Count Is Less Than', tagalogName: 'Bilang ay Mababa sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'SUM_EQUALS', englishName: 'Total Is Equals', tagalogName: 'Kabuuan ay ay Katumbas ng' },
   { inputTypeValue: 'REPEATER_GROUP', value: 'SUM_GREATER_THAN', englishName: 'Total Is Greater Than', tagalogName: 'Kabuuan ay Higit sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'SUM_LESS_THAN', englishName: 'Total Is Less Than', tagalogName: 'Kabuuan ay Mababa sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'MIN_EQUALS', englishName: 'Minimum Is Equal To', tagalogName: 'Pinakamababa ay Katumbas ng' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'MIN_GREATER_THAN', englishName: 'Minimum Is Greater Than', tagalogName: 'Pinakamababa ay Mas Malaki sa' },
   { inputTypeValue: 'REPEATER_GROUP', value: 'MIN_LESS_THAN', englishName: 'Minimum Is Less Than', tagalogName: 'Pinakamababa ay Mas Mababa sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'MAX_EQUALS', englishName: 'Maximum Is Equal To', tagalogName: 'Pinakamataas ay Katumbas ng' },
   { inputTypeValue: 'REPEATER_GROUP', value: 'MAX_GREATER_THAN', englishName: 'Maximum Is Greater Than', tagalogName: 'Pinakamataas ay Mas Malaki sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'MAX_LESS_THAN', englishName: 'Maximum Is Less Than', tagalogName: 'Pinakamataas ay Mas Mababa sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'AVERAGE_EQUALS', englishName: 'Average Is Equal To', tagalogName: 'Karaniwan ay Katumbas ng' },
   { inputTypeValue: 'REPEATER_GROUP', value: 'AVERAGE_GREATER_THAN', englishName: 'Average Is Greater Than', tagalogName: 'Karaniwan ay Mas Malaki sa' },
+  { inputTypeValue: 'REPEATER_GROUP', value: 'AVERAGE_LESS_THAN', englishName: 'Minimum Is Less Than', tagalogName: 'Karaniwan ay Mas Mababa sa' },
   { inputTypeValue: 'REPEATER_GROUP', value: 'ANY_MATCH', englishName: 'Any Item Matches', tagalogName: 'Alinmang Item ay Tumpak' },
   { inputTypeValue: 'REPEATER_GROUP', value: 'ALL_MATCH', englishName: 'All Items Match', tagalogName: 'Lahat ng Item ay Tumpak' },
 ];

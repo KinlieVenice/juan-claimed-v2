@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { useAuth } from "@/lib/mock-auth";
+import { useAuth } from "@/lib/auth";
 import { ClayBadge } from "@/components/ClayBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

@@ -23,7 +23,7 @@ export const getDynamicRuleGroupTree = async (req: GetDynamicRuleGroupTreeReques
       message: "Unable to load dynamic rule group tree.",
       error: "An unexpected error occurred on the server.",
       errorCode: "SERVER_ERROR",
-      data: []
+      data: null
     });
   }
 };
@@ -45,6 +45,16 @@ const mapTreeError = (res: Response, error: any, action: "create" | "update") =>
 
   if (error.message === "OPERATOR_INPUT_TYPE_MISMATCH") {
     return res.status(400).json({ success: false, message, error: "An operator in this tree does not apply to the field's input type.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "CONDITION_FIELD_NOT_FOUND") {
+    return res.status(400).json({ success: false, message, error: "A referenced dependency field does not exist.", errorCode: error.message, data: null });
+  }
+
+  if (error.message === "INVALID_CONDITION_FIELD_CLASSIFICATION") {
+    return res
+      .status(400)
+      .json({ success: false, message, error: "A Global field's condition can only depend on other Global fields; a Follow-Up field's condition can depend on Global or Follow-Up fields.", errorCode: error.message, data: null });
   }
 
   return null;

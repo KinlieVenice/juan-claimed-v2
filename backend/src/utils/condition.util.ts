@@ -130,13 +130,21 @@ const evaluateAge = (operator: string, targetValue: unknown, actualValue: unknow
   }
 };
 
+// Collapses runs of whitespace (including newlines — TEXT fields configured as
+// multi-line/textarea can carry line breaks and stray spacing) into a single space and
+// trims the ends. This is a comparison-time normalization only — never applied to what's
+// actually stored, and it's a blunt instrument (won't catch every formatting quirk), but
+// it's what keeps EQUALS/CONTAINS-style conditions from silently failing over
+// whitespace differences that don't matter to the admin authoring the condition.
+const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, " ").trim();
+
 const evaluateText = (operator: string, targetValue: unknown, actualValue: unknown): boolean => {
-  const actual = toText(actualValue, "ACTUAL").toLowerCase().trim();
+  const actual = normalizeWhitespace(toText(actualValue, "ACTUAL").toLowerCase());
 
   if (operator === "IS_EMPTY") return isBlank(actual);
   if (operator === "IS_NOT_EMPTY") return !isBlank(actual);
 
-  const target = toText(targetValue, "TARGET").toLowerCase().trim();
+  const target = normalizeWhitespace(toText(targetValue, "TARGET").toLowerCase());
   switch (operator) {
     case "EQUALS":
       return actual === target;
@@ -341,7 +349,19 @@ const evaluateBoolean = (operator: string, targetValue: unknown, actualValue: un
 };
 
 const evaluateSingleSelect = (operator: string, targetValue: unknown, actualValue: unknown): boolean => {
+  if (operator === "IS_EMPTY" || operator === "IS_NOT_EMPTY") {
+    const isEmpty = actualValue === null || actualValue === undefined || actualValue === "";
+    return operator === "IS_EMPTY" ? isEmpty : !isEmpty;
+  }
+
   const actual = toText(actualValue, "ACTUAL");
+
+  // targetValue is a list of option values for IN/NOT_IN, a single one for EQUALS/NOT_EQUALS.
+  if (operator === "IN" || operator === "NOT_IN") {
+    const target = toStringArray(targetValue, "TARGET");
+    return operator === "IN" ? target.includes(actual) : !target.includes(actual);
+  }
+
   const target = toText(targetValue, "TARGET");
   switch (operator) {
     case "EQUALS":
@@ -355,6 +375,11 @@ const evaluateSingleSelect = (operator: string, targetValue: unknown, actualValu
 
 // actualValue: the option values the user selected, e.g. ["PWD", "SENIOR"]
 const evaluateMultiSelect = (operator: string, targetValue: unknown, actualValue: unknown): boolean => {
+  if (operator === "IS_EMPTY" || operator === "IS_NOT_EMPTY") {
+    const isEmpty = actualValue === null || actualValue === undefined || (Array.isArray(actualValue) && actualValue.length === 0);
+    return operator === "IS_EMPTY" ? isEmpty : !isEmpty;
+  }
+
   const actual = toStringArray(actualValue, "ACTUAL");
   const target = toStringArray(targetValue, "TARGET");
   switch (operator) {
@@ -362,39 +387,48 @@ const evaluateMultiSelect = (operator: string, targetValue: unknown, actualValue
       return sameMembers(actual, target);
     case "NOT_EQUALS":
       return !sameMembers(actual, target);
-    case "IN":
+    // HAS_ANY/HAS_NONE are this session's rename of the old IN/NOT_IN — same "at least one
+    // shared value" / "no shared values" semantics, just clearer names for a multi-value field.
+    case "HAS_ANY":
       return actual.some((value) => target.includes(value));
-    case "NOT_IN":
+    case "HAS_NONE":
       return actual.every((value) => !target.includes(value));
+    // HAS_ALL: every target value is present in the answer (answer is a SUPERSET of target).
+    case "HAS_ALL":
+      return target.every((value) => actual.includes(value));
+    // IS_SUBSET_OF: every answer value is present in the target list (answer is a SUBSET of
+    // target) — the inverse relation from HAS_ALL.
+    case "IS_SUBSET_OF":
+      return actual.every((value) => target.includes(value));
+    case "IS_NOT_SUBSET_OF":
+      return !actual.every((value) => target.includes(value));
     default:
       throw new Error("UNSUPPORTED_OPERATOR_FOR_INPUT_TYPE");
   }
 };
 
 const evaluateHierarchySelect = (operator: string, targetValue: unknown, actualValue: unknown): boolean => {
+  // fieldAnswer.service.ts's decodeFieldValue always resolves a HIERARCHY_SELECT answer to
+  // its root-first ancestor path here (e.g. ["NCR", "Manila", "Ermita"]), not the bare leaf
+  // value — every operator below works off that shape.
   if (operator === "IS_EMPTY" || operator === "IS_NOT_EMPTY") {
-    const isEmpty = actualValue === null || actualValue === undefined || actualValue === "";
+    const isEmpty = actualValue === null || actualValue === undefined || (Array.isArray(actualValue) && actualValue.length === 0);
     return operator === "IS_EMPTY" ? isEmpty : !isEmpty;
   }
 
-  // BELONGS_TO checks the selected node's ancestor chain, root-first,
-  // e.g. actualValue: ["NCR", "Manila", "Ermita"], targetValue: "Manila"
-  if (operator === "BELONGS_TO") {
-    const ancestorPath = toStringArray(actualValue, "ACTUAL");
-    return ancestorPath.includes(toText(targetValue, "TARGET"));
+  const ancestorPath = toStringArray(actualValue, "ACTUAL");
+
+  // BELONGS_TO/NOT_BELONGS_TO: a SET of target node values, possibly at different depths
+  // (the conditioning UI's multi-level multi-select lets each selected branch stop wherever
+  // it needs — see HierarchyMultiLevelSelector.tsx). Matches if the answer's ancestor chain
+  // contains ANY of them, so a shallower target (e.g. "Naic", a city) still matches a deeper
+  // answer (a barangay under Naic) without needing the exact same depth.
+  if (operator === "BELONGS_TO" || operator === "NOT_BELONGS_TO") {
+    const matchesAny = toStringArray(targetValue, "TARGET").some((target) => ancestorPath.includes(target));
+    return operator === "BELONGS_TO" ? matchesAny : !matchesAny;
   }
 
-  const actual = toText(actualValue, "ACTUAL");
-  switch (operator) {
-    case "EQUALS":
-      return actual === toText(targetValue, "TARGET");
-    case "NOT_EQUALS":
-      return actual !== toText(targetValue, "TARGET");
-    case "IN":
-      return toStringArray(targetValue, "TARGET").includes(actual);
-    default:
-      throw new Error("UNSUPPORTED_OPERATOR_FOR_INPUT_TYPE");
-  }
+  throw new Error("UNSUPPORTED_OPERATOR_FOR_INPUT_TYPE");
 };
 
 interface RepeaterConditionLeaf {
@@ -469,17 +503,43 @@ const evaluateRepeaterGroup = (operator: string, targetValue: unknown, actualVal
 
   const actual = toNumberArray(actualValue, "ACTUAL");
   const target = toNumber(targetValue, "TARGET");
+  const count = actual.length;
+  const sum = actual.reduce((s, n) => s + n, 0);
+  const min = count > 0 ? Math.min(...actual) : undefined;
+  const max = count > 0 ? Math.max(...actual) : undefined;
+  const average = count > 0 ? sum / count : undefined;
+
   switch (operator) {
     case "COUNT_EQUALS":
-      return actual.length === target;
+      return count === target;
+    case "COUNT_GREATER_THAN":
+      return count > target;
+    case "COUNT_LESS_THAN":
+      return count < target;
+    case "SUM_EQUALS":
+      return sum === target;
     case "SUM_GREATER_THAN":
-      return actual.reduce((sum, n) => sum + n, 0) > target;
+      return sum > target;
+    case "SUM_LESS_THAN":
+      return sum < target;
+    case "MIN_EQUALS":
+      return min !== undefined && min === target;
+    case "MIN_GREATER_THAN":
+      return min !== undefined && min > target;
     case "MIN_LESS_THAN":
-      return actual.length > 0 && Math.min(...actual) < target;
+      return min !== undefined && min < target;
+    case "MAX_EQUALS":
+      return max !== undefined && max === target;
     case "MAX_GREATER_THAN":
-      return actual.length > 0 && Math.max(...actual) > target;
+      return max !== undefined && max > target;
+    case "MAX_LESS_THAN":
+      return max !== undefined && max < target;
+    case "AVERAGE_EQUALS":
+      return average !== undefined && average === target;
     case "AVERAGE_GREATER_THAN":
-      return actual.length > 0 && actual.reduce((sum, n) => sum + n, 0) / actual.length > target;
+      return average !== undefined && average > target;
+    case "AVERAGE_LESS_THAN":
+      return average !== undefined && average < target;
     default:
       throw new Error("UNSUPPORTED_OPERATOR_FOR_INPUT_TYPE");
   }
@@ -508,5 +568,95 @@ export const compare = ({ inputType, operator, targetValue, actualValue }: Compa
       return evaluateRepeaterGroup(operator, targetValue, actualValue);
     default:
       throw new Error("UNSUPPORTED_INPUT_TYPE");
+  }
+};
+
+// Validates a raw (already type/shape-checked by the caller — see
+// fieldAnswer.service.ts's encodeFieldValue) answer against the field's own configJson
+// authoring constraints (min/max length, regex, numeric bounds, date bounds, duration
+// bounds, selection counts). Throws ANSWER_VIOLATES_FIELD_CONFIG on any violation. A
+// missing/empty configJson, or a key simply not present, imposes no constraint — same
+// "all keys optional" stance fieldConfig.request.ts's authoring schemas take.
+export const assertAnswerMatchesFieldConfig = (inputType: string, configJson: Record<string, unknown> | null | undefined, rawValue: unknown): void => {
+  if (!configJson) return;
+  const fail = (): never => {
+    throw new Error("ANSWER_VIOLATES_FIELD_CONFIG");
+  };
+
+  switch (inputType) {
+    case "TEXT": {
+      const value = rawValue as string;
+      const { minLength, maxLength, regex } = configJson as { minLength?: number; maxLength?: number; regex?: string };
+      if (typeof minLength === "number" && value.length < minLength) fail();
+      if (typeof maxLength === "number" && value.length > maxLength) fail();
+      if (typeof regex === "string" && regex) {
+        // A malformed pattern is an authoring-time bug (already rejected by
+        // fieldConfig.request.ts's isValidRegex refine) — never block an answer over it.
+        let re: RegExp;
+        try {
+          re = new RegExp(regex);
+        } catch {
+          break;
+        }
+        if (!re.test(value)) fail();
+      }
+      break;
+    }
+
+    case "NUMBER": {
+      const value = rawValue as number;
+      const { min, max, allowDecimals, allowNegative } = configJson as { min?: number; max?: number; allowDecimals?: boolean; allowNegative?: boolean };
+      if (typeof min === "number" && value < min) fail();
+      if (typeof max === "number" && value > max) fail();
+      if (allowDecimals === false && !Number.isInteger(value)) fail();
+      if (allowNegative === false && value < 0) fail();
+      break;
+    }
+
+    case "MONEY": {
+      const value = rawValue as number;
+      const { min, max } = configJson as { min?: number; max?: number };
+      if (typeof min === "number" && value < min) fail();
+      if (typeof max === "number" && value > max) fail();
+      break;
+    }
+
+    case "DATE": {
+      const value = toDate(rawValue, "ACTUAL");
+      const { minDate, maxDate, allowFuture, allowPast } = configJson as { minDate?: string; maxDate?: string; allowFuture?: boolean; allowPast?: boolean };
+      if (minDate && value.getTime() < toDate(minDate, "TARGET").getTime()) fail();
+      if (maxDate && value.getTime() > toDate(maxDate, "TARGET").getTime()) fail();
+      const now = Date.now();
+      if (allowFuture === false && value.getTime() > now) fail();
+      if (allowPast === false && value.getTime() < now) fail();
+      break;
+    }
+
+    case "DURATION": {
+      const value = rawValue as { value: number; unit: DurationUnit };
+      const { minValue, maxValue, allowedUnits } = configJson as { minValue?: number; maxValue?: number; allowedUnits?: string[] };
+      if (Array.isArray(allowedUnits) && allowedUnits.length > 0 && !allowedUnits.includes(value.unit)) fail();
+      // minValue/maxValue are plain numbers with no unit of their own — compared directly
+      // against the answer's own value in whatever unit it was submitted in. Not
+      // unit-normalized (e.g. "3" means 3 of whatever unit was picked, not always 3 days) —
+      // accurate enough when allowedUnits is scoped to one unit, looser otherwise; that
+      // tradeoff is the admin's call when authoring the config.
+      if (typeof minValue === "number" && value.value < minValue) fail();
+      if (typeof maxValue === "number" && value.value > maxValue) fail();
+      break;
+    }
+
+    case "MULTI_SELECT": {
+      const value = rawValue as string[];
+      const { minSelections, maxSelections } = configJson as { minSelections?: number; maxSelections?: number };
+      if (typeof minSelections === "number" && value.length < minSelections) fail();
+      if (typeof maxSelections === "number" && value.length > maxSelections) fail();
+      break;
+    }
+
+    // BOOLEAN, SINGLE_SELECT, HIERARCHY_SELECT, REPEATER_GROUP: no configJson constraints
+    // defined today (see fieldConfig.request.ts) — nothing to check.
+    default:
+      break;
   }
 };

@@ -36,11 +36,12 @@ export async function seedFieldConfiguration() {
     }
 
     await prisma.dimFieldConditionOperator.upsert({
-      where: { value: op.value },
+      // Composite key — "EQUALS" (etc.) is a distinct row PER input type, not one shared
+      // row across all of them (see the migration that fixed this constraint).
+      where: { value_fieldInputTypeId: { value: op.value, fieldInputTypeId } },
       update: {
         englishName: op.englishName,
         tagalogName: op.tagalogName,
-        fieldInputTypeId: fieldInputTypeId,
       },
       create: {
         value: op.value,
@@ -53,4 +54,27 @@ export async function seedFieldConfiguration() {
   }
 
   console.log(`Condition Operators synchronized (${operatorCount} entries).`);
+
+  // The loop above only creates/updates — an operator removed from operatorsData (e.g. a
+  // rename like MULTI_SELECT's IN/NOT_IN -> HAS_ANY/HAS_NONE) otherwise sits in the DB
+  // forever as a confusing stale duplicate in the admin's operator picker. Reconcile by
+  // deleting anything no longer present, skipping (not crashing) any row a live
+  // dynamic-condition/benefit-condition leaf still actually references.
+  console.log('Reconciling stale Field Condition Operators...');
+  const validOperatorKeys = new Set(
+    operatorsData.filter((op) => inputTypeMap[op.inputTypeValue]).map((op) => `${op.value}::${inputTypeMap[op.inputTypeValue]}`),
+  );
+  const existingOperators = await prisma.dimFieldConditionOperator.findMany({ select: { id: true, value: true, fieldInputTypeId: true } });
+  const staleOperators = existingOperators.filter((o) => !validOperatorKeys.has(`${o.value}::${o.fieldInputTypeId}`));
+
+  let removedCount = 0;
+  for (const stale of staleOperators) {
+    try {
+      await prisma.dimFieldConditionOperator.delete({ where: { id: stale.id } });
+      removedCount++;
+    } catch {
+      console.warn(`⚠️ Could not remove stale operator "${stale.value}" — still referenced by an existing condition, leaving it in place.`);
+    }
+  }
+  console.log(`Removed ${removedCount} stale operator(s) no longer in fieldConfig.ts.`);
 }

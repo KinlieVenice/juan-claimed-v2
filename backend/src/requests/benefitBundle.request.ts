@@ -29,6 +29,46 @@ const bundleUtilizationSchema = z.object({
   attachments: z.array(bundleAttachmentSchema).optional().default([]),
 });
 
+const bundleHowToApplySchema = z.object({
+  englishName: z.string().min(1),
+  tagalogName: z.string().min(1),
+  englishDescription: z.string().min(1),
+  tagalogDescription: z.string().min(1),
+  attachments: z.array(bundleAttachmentSchema).optional().default([]),
+});
+
+// Eligibility tree — matches benefitRuleGroup.service.ts's BenefitRuleTreeRoot (and the
+// frontend's RuleTreeNode, types/domain.ts) exactly: every leaf names its own fieldId
+// directly, no self-referential owner-field fallback the way a field's own dynamicCondition
+// has. z.lazy for the recursive group/children shape.
+const benefitRuleConditionSchema = z.object({
+  kind: z.literal("condition"),
+  fieldId: z.string().min(1),
+  fieldConditionOperatorId: z.string().min(1),
+  conditionFieldValue: z.unknown(),
+});
+
+type BenefitRuleTreeNodeInput =
+  | z.infer<typeof benefitRuleConditionSchema>
+  | { kind: "group"; logicalOperator: "ALL" | "ANY"; children: BenefitRuleTreeNodeInput[] };
+
+const benefitRuleTreeNodeSchema: z.ZodType<BenefitRuleTreeNodeInput> = z.lazy(() =>
+  z.union([
+    benefitRuleConditionSchema,
+    z.object({
+      kind: z.literal("group"),
+      logicalOperator: z.enum(["ALL", "ANY"]),
+      children: z.array(benefitRuleTreeNodeSchema),
+    }),
+  ]),
+);
+
+const benefitRuleTreeRootSchema = z.object({
+  kind: z.literal("group"),
+  logicalOperator: z.enum(["ALL", "ANY"]),
+  children: z.array(benefitRuleTreeNodeSchema),
+});
+
 export const createBenefitBundleSchema = z
   .object({
     name: z.string().min(1),
@@ -39,6 +79,8 @@ export const createBenefitBundleSchema = z
     groupIds: z.array(z.string().min(1)).optional().default([]),
     requirements: z.array(bundleRequirementSchema).optional().default([]),
     utilizations: z.array(bundleUtilizationSchema).optional().default([]),
+    howToApplies: z.array(bundleHowToApplySchema).optional().default([]),
+    eligibilityTree: benefitRuleTreeRootSchema.optional(),
   })
   .refine((data) => data.nationwide || data.psgcCodes.length > 0, {
     message: "psgcCodes must contain at least one code unless nationwide is true.",
@@ -49,11 +91,12 @@ export type CreateBenefitBundleDto = z.infer<typeof createBenefitBundleSchema>;
 
 export type CreateBenefitBundleRequest = Request<{}, {}, CreateBenefitBundleDto>;
 
-// Edit variants: same shape as create, but each requirement/utilization/
-// attachment may carry an `id` — present means "edit this existing row",
-// absent means "create a new one". Rows that already exist but are left
-// out of the payload entirely are NOT deleted; use the individual DELETE
-// endpoints for that.
+// Edit variants: same shape as create, but each requirement/utilization/how-to-apply/
+// attachment may carry an `id` — present means "edit this existing row", absent means
+// "create a new one". Rows that already exist but are left out of the payload entirely are
+// NOT deleted; use the individual DELETE endpoints for that. eligibilityTree, when
+// present, wholesale-replaces the existing tree (see editBenefitRuleTreeWith) — omit it
+// entirely to leave the existing tree untouched.
 const editBundleAttachmentSchema = bundleAttachmentSchema.extend({
   id: z.string().min(1).optional(),
 });
@@ -76,6 +119,15 @@ const editBundleUtilizationSchema = z.object({
   attachments: z.array(editBundleAttachmentSchema).optional().default([]),
 });
 
+const editBundleHowToApplySchema = z.object({
+  id: z.string().min(1).optional(),
+  englishName: z.string().min(1),
+  tagalogName: z.string().min(1),
+  englishDescription: z.string().min(1),
+  tagalogDescription: z.string().min(1),
+  attachments: z.array(editBundleAttachmentSchema).optional().default([]),
+});
+
 export const editBenefitBundleSchema = z
   .object({
     name: z.string().min(1),
@@ -86,6 +138,8 @@ export const editBenefitBundleSchema = z
     groupIds: z.array(z.string().min(1)).optional().default([]),
     requirements: z.array(editBundleRequirementSchema).optional().default([]),
     utilizations: z.array(editBundleUtilizationSchema).optional().default([]),
+    howToApplies: z.array(editBundleHowToApplySchema).optional().default([]),
+    eligibilityTree: benefitRuleTreeRootSchema.optional(),
   })
   .refine((data) => data.nationwide || data.psgcCodes.length > 0, {
     message: "psgcCodes must contain at least one code unless nationwide is true.",

@@ -17,16 +17,19 @@ export function RequirementAccordion({ requirements }: { requirements: FctBenefi
           </AccordionTrigger>
           <AccordionContent className="px-4">
             <p className="pl-8 text-sm text-muted-foreground">{req.englishDescription}</p>
-            {req.documents.length > 0 && (
+            {req.attachments.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2 pl-8">
-                {req.documents.map((doc) => (
-                  <span
-                    key={doc}
-                    className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground"
+                {req.attachments.map((attachment) => (
+                  <a
+                    key={attachment.id}
+                    href={attachment.filePath}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
                   >
                     <FileText className="size-3.5 text-primary" />
-                    {doc}
-                  </span>
+                    {attachment.fileLabel}
+                  </a>
                 ))}
               </div>
             )}

@@ -143,18 +143,20 @@ Case-sensitive, same reasoning as SINGLE_SELECT.
 
 ## HIERARCHY_SELECT
 
+`actualValue` is always the selected node's **root-first ancestor path**, e.g. `["NCR", "Manila", "Ermita"]` — never the bare leaf value.
+
 | Operator | targetValue | actualValue |
 |---|---|---|
-| `EQUALS` / `NOT_EQUALS` | `string` (node value) | `string` (selected node value) |
-| `IN` | `string[]` | `string` (selected node value) |
-| `IS_EMPTY` / `IS_NOT_EMPTY` | not used | `string` (selected node value) |
-| `BELONGS_TO` | `string` (ancestor node value) | `string[]` — selected node's **root-first ancestor path**, e.g. `["NCR", "Manila", "Ermita"]` |
+| `BELONGS_TO` / `NOT_BELONGS_TO` | `string[]` — a SET of ancestor node values, possibly at different depths | `string[]` — ancestor path |
+| `IS_EMPTY` / `IS_NOT_EMPTY` | not used | `string[]` — ancestor path |
+
+`BELONGS_TO` matches if the answer's ancestor path contains ANY of `targetValue`'s entries — so a shallower target (e.g. `"Naic"`, a city) still matches a deeper answer (a barangay under Naic) without needing the same depth. `NOT_BELONGS_TO` negates it.
 
 ```ts
 compare({
   inputType: "HIERARCHY_SELECT",
   operator: "BELONGS_TO",
-  targetValue: "Manila",
+  targetValue: ["Manila", "Naic"],
   actualValue: ["NCR", "Manila", "Ermita"],
 }) // true
 ```

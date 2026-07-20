@@ -2,11 +2,13 @@ import { prisma } from "../utils/prisma.js";
 import { createBenefit, editBenefit } from "./benefit.service.js";
 import { createRequirement, editRequirement } from "./benefitRequirement.service.js";
 import { createUtilization, editUtilization } from "./benefitUtilization.service.js";
+import { createHowToApply, editHowToApply } from "./benefitHowToApply.service.js";
 import { createParentAttachment, editParentAttachment } from "./benefitAttachment.service.js";
+import { createBenefitRuleTreeWith, editBenefitRuleTreeWith, fetchBenefitRuleTreeWith } from "./benefitRuleGroup.service.js";
 
 /**
  * Orchestrates a single "create everything" call by composing the existing
- * benefit/requirement/utilization/attachment services, all run inside one
+ * benefit/requirement/utilization/how-to-apply/attachment services, all run inside one
  * `prisma.$transaction`. Every service call below takes the transaction's
  * `tx` client instead of the global `prisma` singleton, so a failure at any
  * point (bad PSGC code, forbidden scope, invalid attachment type, etc.)
@@ -58,17 +60,44 @@ export const createBenefitBundle = async (data: any, user: any) => {
       utilizations.push({ ...utilization, attachments });
     }
 
-    return { ...benefit, requirements, utilizations };
+    const howToApplies = [];
+
+    for (const howToApplyData of data.howToApplies ?? []) {
+      const howToApply = await createHowToApply(benefit.id, howToApplyData, user, tx);
+
+      const attachments = [];
+      for (const attachmentData of howToApplyData.attachments ?? []) {
+        const attachment = await createParentAttachment(
+          "HOW_TO_APPLY",
+          benefit.id,
+          howToApply.id,
+          attachmentData,
+          user,
+          tx,
+        );
+        attachments.push(attachment);
+      }
+
+      howToApplies.push({ ...howToApply, attachments });
+    }
+
+    if (data.eligibilityTree) {
+      await createBenefitRuleTreeWith(tx, benefit.id, data.eligibilityTree);
+    }
+    const eligibilityTree = await fetchBenefitRuleTreeWith(tx, benefit.id);
+
+    return { ...benefit, requirements, utilizations, howToApplies, eligibilityTree };
   });
 };
 
 /**
  * Same idea as createBenefitBundle, but edits the benefit and upserts its
- * requirements/utilizations/attachments in one transactional call: each
+ * requirements/utilizations/how-to-apply entries/attachments in one transactional call: each
  * item with an `id` is edited in place, each item without one is created
  * fresh. Items that already exist but are omitted from the payload are left
  * untouched — this does not delete anything, use the individual DELETE
- * endpoints for that.
+ * endpoints for that. `eligibilityTree`, when present, wholesale-replaces the existing tree
+ * (see editBenefitRuleTreeWith); omit it entirely to leave the existing tree untouched.
  */
 export const editBenefitBundle = async (benefitId: string, data: any, user: any) => {
   return prisma.$transaction(async (tx) => {
@@ -140,6 +169,44 @@ export const editBenefitBundle = async (benefitId: string, data: any, user: any)
       utilizations.push({ ...utilization, attachments });
     }
 
-    return { ...benefit, requirements, utilizations };
+    const howToApplies = [];
+
+    for (const howToApplyData of data.howToApplies ?? []) {
+      const howToApply = howToApplyData.id
+        ? await editHowToApply(benefitId, howToApplyData.id, howToApplyData, user, tx)
+        : await createHowToApply(benefitId, howToApplyData, user, tx);
+
+      const attachments = [];
+      for (const attachmentData of howToApplyData.attachments ?? []) {
+        const attachment = attachmentData.id
+          ? await editParentAttachment(
+              "HOW_TO_APPLY",
+              benefitId,
+              howToApply.id,
+              attachmentData.id,
+              attachmentData,
+              user,
+              tx,
+            )
+          : await createParentAttachment(
+              "HOW_TO_APPLY",
+              benefitId,
+              howToApply.id,
+              attachmentData,
+              user,
+              tx,
+            );
+        attachments.push(attachment);
+      }
+
+      howToApplies.push({ ...howToApply, attachments });
+    }
+
+    if (data.eligibilityTree) {
+      await editBenefitRuleTreeWith(tx, benefitId, data.eligibilityTree);
+    }
+    const eligibilityTree = await fetchBenefitRuleTreeWith(tx, benefitId);
+
+    return { ...benefit, requirements, utilizations, howToApplies, eligibilityTree };
   });
 };

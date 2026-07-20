@@ -12,6 +12,9 @@ const dynamicRuleTreeNodeSchema: z.ZodType<unknown> = z.lazy(() =>
       kind: z.literal("condition"),
       fieldConditionOperatorId: z.string().min(1),
       conditionFieldValue: z.unknown(),
+      // Which field's answer this leaf evaluates. Omitted/null = self-referential —
+      // the enclosing tree's own field (today's only behavior).
+      conditionFieldId: z.string().uuid().nullish(),
     }),
   ]),
 );

@@ -3,9 +3,9 @@ import { Sidebar } from "@/components/layout/Sidebar";
 
 export function AdminLayout() {
   return (
-    <div className="flex min-h-screen bg-muted/30">
+    <div className="flex h-dvh overflow-hidden bg-muted/30">
       <Sidebar />
-      <main className="flex-1 overflow-x-hidden">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden thin-scrollbar">
         <div className="mx-auto max-w-6xl px-8 py-10">
           <Outlet />
         </div>

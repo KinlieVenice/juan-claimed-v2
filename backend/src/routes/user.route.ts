@@ -5,6 +5,7 @@ import {
   assignRoleAndScope,
   createUser,
   setUserActive,
+  resetUserPassword,
   deleteUser,
 } from "../controllers/user.controller.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
@@ -48,6 +49,14 @@ userRouter.patch(
   requireRole(PERMISSIONS.MANAGE_USERS),
   validateBody(setUserActiveSchema),
   setUserActive,
+);
+
+// Resetting a staff account's password (Only Superadmin)
+userRouter.post(
+  "/:id/reset-password",
+  mockAuth,
+  requireRole(PERMISSIONS.MANAGE_USERS),
+  resetUserPassword,
 );
 
 // Soft-deleting accounts (Only Superadmin)

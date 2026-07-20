@@ -1,21 +1,20 @@
 import * as React from "react";
 import { Contact } from "lucide-react";
-import { useAuth } from "@/lib/mock-auth";
-import { getAgentMates } from "@/services/users.service";
-import type { DimUser } from "@/types/domain";
+import { useAuth } from "@/lib/auth";
+import { getUsers, filterAgentMates, type RealUser } from "@/services/users.service";
 import { EmptyState } from "@/components/EmptyState";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export function AgentMatesPage() {
-  const { user } = useAuth();
-  const [mates, setMates] = React.useState<DimUser[] | null>(null);
+  const { user, token } = useAuth();
+  const [mates, setMates] = React.useState<RealUser[] | null>(null);
 
   React.useEffect(() => {
-    if (!user) return;
-    getAgentMates(user.id).then(setMates);
-  }, [user]);
+    if (!user || !token) return;
+    getUsers(token).then((users) => setMates(filterAgentMates(users, user.id)));
+  }, [user, token]);
 
   return (
     <div className="space-y-6">

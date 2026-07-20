@@ -1,5 +1,7 @@
 import { prisma, type DbClient } from "../utils/prisma.js";
 import dayjs from "../utils/dayjs.util.js";
+import { assertAnswerMatchesFieldConfig } from "../utils/condition.util.js";
+import { isPsgcCode, derivePsgcAncestorPath } from "../utils/psgc.util.js";
 
 // field_value is a single VarChar(255); compound shapes are JSON-encoded into it on
 // write and parsed back out on read/evaluation. See docs/condition-value-shapes.md for
@@ -7,11 +9,19 @@ import dayjs from "../utils/dayjs.util.js";
 // counterpart of that reference.
 const MAX_VALUE_LENGTH = 255;
 
+// The one system hierarchy whose nodes are never seeded into dim_field_hierarchy_node —
+// see phLocationHierarchySeeder.ts. Its answers are raw PSGC codes, self-describing enough
+// (see utils/psgc.util.ts) that neither validating nor resolving an ancestor path for them
+// needs a DB lookup at all.
+const PH_LOCATION_HIERARCHY_KEY = "PH_LOCATION";
+
 type AnswerableField = {
   id: string;
   parentFieldId: string | null;
   fieldHierarchyId: string | null;
+  configJson: unknown;
   fieldInputType: { value: string };
+  hierarchy: { key: string | null } | null;
 };
 
 export interface SubmitFieldAnswerInput {
@@ -35,18 +45,25 @@ const isDurationShape = (value: unknown): value is { value: number; unit: string
   ["days", "weeks", "months", "years"].includes((value as { unit?: unknown }).unit as string);
 
 // Validates a raw client-submitted value against the field's inputType (and, for
-// SELECT/HIERARCHY_SELECT, against that field's own configured options/nodes) and
-// stringifies it into the VarChar(255). Throws INVALID_ANSWER_VALUE on any mismatch —
-// same "reject, don't coerce" stance condition.util.ts's compare() takes.
+// SELECT/HIERARCHY_SELECT, against that field's own configured options/nodes), then
+// against its own configJson authoring constraints (min/max length, regex, numeric/date/
+// duration bounds, selection counts — see assertAnswerMatchesFieldConfig), and stringifies
+// it into the VarChar(255). Throws INVALID_ANSWER_VALUE / ANSWER_VIOLATES_FIELD_CONFIG on
+// any mismatch — same "reject, don't coerce" stance condition.util.ts's compare() takes.
 const encodeFieldValue = async (db: DbClient, field: AnswerableField, rawValue: unknown): Promise<string> => {
-  switch (field.fieldInputType.value) {
+  const configJson = (field.configJson ?? null) as Record<string, unknown> | null;
+  const inputType = field.fieldInputType.value;
+
+  switch (inputType) {
     case "TEXT": {
       if (typeof rawValue !== "string") throw new Error("INVALID_ANSWER_VALUE");
+      assertAnswerMatchesFieldConfig(inputType, configJson, rawValue);
       return assertLength(rawValue, field.id);
     }
     case "NUMBER":
     case "MONEY": {
       if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) throw new Error("INVALID_ANSWER_VALUE");
+      assertAnswerMatchesFieldConfig(inputType, configJson, rawValue);
       return assertLength(String(rawValue), field.id);
     }
     case "BOOLEAN": {
@@ -55,10 +72,12 @@ const encodeFieldValue = async (db: DbClient, field: AnswerableField, rawValue: 
     }
     case "DATE": {
       if (typeof rawValue !== "string" || !dayjs(rawValue).isValid()) throw new Error("INVALID_ANSWER_VALUE");
+      assertAnswerMatchesFieldConfig(inputType, configJson, rawValue);
       return assertLength(rawValue, field.id);
     }
     case "DURATION": {
       if (!isDurationShape(rawValue)) throw new Error("INVALID_ANSWER_VALUE");
+      assertAnswerMatchesFieldConfig(inputType, configJson, rawValue);
       return assertLength(JSON.stringify(rawValue), field.id);
     }
     case "SINGLE_SELECT": {
@@ -72,10 +91,15 @@ const encodeFieldValue = async (db: DbClient, field: AnswerableField, rawValue: 
       const values = rawValue as string[];
       const options = await db.dimFieldOption.findMany({ where: { fieldId: field.id, value: { in: values } } });
       if (options.length !== new Set(values).size) throw new Error("INVALID_ANSWER_VALUE");
+      assertAnswerMatchesFieldConfig(inputType, configJson, values);
       return assertLength(JSON.stringify(values), field.id);
     }
     case "HIERARCHY_SELECT": {
       if (typeof rawValue !== "string" || !field.fieldHierarchyId) throw new Error("INVALID_ANSWER_VALUE");
+      if (field.hierarchy?.key === PH_LOCATION_HIERARCHY_KEY) {
+        if (!isPsgcCode(rawValue)) throw new Error("INVALID_ANSWER_VALUE");
+        return assertLength(rawValue, field.id);
+      }
       const node = await db.dimFieldHierarchyNode.findFirst({ where: { fieldHierarchyId: field.fieldHierarchyId, value: rawValue } });
       if (!node) throw new Error("INVALID_ANSWER_VALUE");
       return assertLength(rawValue, field.id);
@@ -89,9 +113,18 @@ const encodeFieldValue = async (db: DbClient, field: AnswerableField, rawValue: 
 };
 
 // Walks parentNodeId in memory to build a HIERARCHY_SELECT node's root-first ancestor
-// path (e.g. ["NCR", "Manila", "Ermita"]) — the shape BELONGS_TO needs.
-const resolveHierarchyAncestorPath = async (db: DbClient, fieldHierarchyId: string, nodeValue: string): Promise<string[]> => {
-  const nodes = await db.dimFieldHierarchyNode.findMany({ where: { fieldHierarchyId } });
+// path (e.g. ["NCR", "Manila", "Ermita"]) — the shape BELONGS_TO/EQUALS/NOT_EQUALS/IN need.
+// PH_LOCATION has no rows in dim_field_hierarchy_node at all (its nodes come live from the
+// PSGC API, never seeded — see phLocationHierarchySeeder.ts) — but a PSGC code is itself
+// hierarchically encoded (see utils/psgc.util.ts), so its ancestor path is derived directly
+// from the code's own digits instead, no DB lookup needed.
+const resolveHierarchyAncestorPath = async (db: DbClient, field: AnswerableField, nodeValue: string): Promise<string[]> => {
+  if (field.hierarchy?.key === PH_LOCATION_HIERARCHY_KEY) {
+    return derivePsgcAncestorPath(nodeValue);
+  }
+  if (!field.fieldHierarchyId) return [];
+
+  const nodes = await db.dimFieldHierarchyNode.findMany({ where: { fieldHierarchyId: field.fieldHierarchyId } });
   const byId = new Map(nodes.map((node) => [node.id, node]));
 
   const selected = nodes.find((node) => node.value === nodeValue);
@@ -106,12 +139,10 @@ const resolveHierarchyAncestorPath = async (db: DbClient, fieldHierarchyId: stri
   return path;
 };
 
-// Inverse of encodeFieldValue. `forEvaluation` controls HIERARCHY_SELECT's shape:
-// BELONGS_TO (the realistic PSGC-location use case) needs the ancestor-path array, not
-// the plain node value — see the design note in docs/condition-value-shapes.md. This is
-// a known, pre-existing limitation of the flat answers-map the evaluator expects (not
-// something this change fixes): EQUALS/NOT_EQUALS/IN against a HIERARCHY_SELECT field
-// resolved through this map won't evaluate correctly, only BELONGS_TO will.
+// Inverse of encodeFieldValue. `forEvaluation` controls HIERARCHY_SELECT's shape: every
+// HIERARCHY_SELECT operator (BELONGS_TO/EQUALS/NOT_EQUALS/IN/IS_EMPTY/IS_NOT_EMPTY) in
+// condition.util.ts's evaluateHierarchySelect expects the ancestor-path array, not the
+// plain node value — see the design note in docs/condition-value-shapes.md.
 const decodeFieldValue = async (
   db: DbClient,
   field: AnswerableField,
@@ -131,7 +162,7 @@ const decodeFieldValue = async (
       return JSON.parse(storedValue);
     case "HIERARCHY_SELECT":
       if (opts.forEvaluation && field.fieldHierarchyId) {
-        return await resolveHierarchyAncestorPath(db, field.fieldHierarchyId, storedValue);
+        return await resolveHierarchyAncestorPath(db, field, storedValue);
       }
       return storedValue;
     default:
@@ -156,7 +187,7 @@ const decodeFieldValue = async (
 export const resolveAnswersMapWith = async (db: DbClient, userId: string): Promise<Record<string, unknown>> => {
   const answers = await db.fctUserFieldAnswer.findMany({
     where: { userId, repeaterGroupId: null },
-    include: { field: { include: { fieldInputType: true } } },
+    include: { field: { include: { fieldInputType: true, hierarchy: { select: { key: true } } } } },
   });
 
   const map: Record<string, unknown> = {};
@@ -173,7 +204,7 @@ export const resolveAnswersMap = async (userId: string): Promise<Record<string, 
 const submitOneFieldAnswer = async (db: DbClient, userId: string, input: SubmitFieldAnswerInput): Promise<void> => {
   const field = await db.dimField.findUnique({
     where: { id: input.fieldId },
-    include: { fieldInputType: true },
+    include: { fieldInputType: true, hierarchy: { select: { key: true } } },
   });
 
   if (!field) {
@@ -246,7 +277,7 @@ export const submitFieldAnswers = async (userId: string, items: SubmitFieldAnswe
 export const fetchUserFieldAnswers = async (userId: string) => {
   const answers = await prisma.fctUserFieldAnswer.findMany({
     where: { userId },
-    include: { field: { include: { fieldInputType: true } } },
+    include: { field: { include: { fieldInputType: true, hierarchy: { select: { key: true } } } } },
     orderBy: { createdAt: "asc" },
   });
 

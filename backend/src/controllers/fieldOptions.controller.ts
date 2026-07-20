@@ -72,6 +72,41 @@ export const createFieldOptions = async (req: CreateFieldOptionsRequest, res: Re
   }
 };
 
+// DELETE FIELD OPTION
+export const deleteFieldOption = async (req: Request<{ fieldId: string; optionId: string }>, res: Response) => {
+  try {
+    const { fieldId, optionId } = req.params;
+    await fieldOptionsService.removeFieldOption(fieldId, optionId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Field option deleted successfully.",
+      error: null,
+      errorCode: null,
+      data: { id: optionId },
+    });
+  } catch (error: any) {
+    if (error.message === "FIELD_OPTION_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Could not delete field option.",
+        error: "The option does not exist on this field.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    console.error("[FieldOptionsController] Error deleting field option:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not delete field option.",
+      error: "An unexpected error occurred on the server.",
+      errorCode: "SERVER_ERROR",
+      data: null,
+    });
+  }
+};
+
 // EDIT FIELD OPTIONS (bulk)
 export const editFieldOptions = async (req: EditFieldOptionsRequest, res: Response) => {
   try {

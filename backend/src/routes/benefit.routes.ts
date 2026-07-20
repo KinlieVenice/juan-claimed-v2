@@ -13,6 +13,7 @@ import { createBenefitSchema, editBenefitSchema } from "../requests/benefit.requ
 import { PERMISSIONS } from "../constants/permissions.js";
 import { benefitRequirementRouter } from "./benefitRequirement.routes.js";
 import { benefitUtilizationRouter } from "./benefitUtilization.routes.js";
+import { benefitHowToApplyRouter } from "./benefitHowToApply.routes.js";
 
 export const benefitRouter = Router();
 
@@ -45,3 +46,4 @@ benefitRouter.delete(
 
 benefitRouter.use("/:benefitId/requirements", benefitRequirementRouter);
 benefitRouter.use("/:benefitId/utilizations", benefitUtilizationRouter);
+benefitRouter.use("/:benefitId/how-to-apply", benefitHowToApplyRouter);

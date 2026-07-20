@@ -118,4 +118,40 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+
+  /* The native number-input up/down spinner renders on its own plain white background
+     that can't actually be recolored to match the app (Chromium only half-respects
+     background-color on it, and Firefox's is a native OS widget with no styling hook at
+     all) — dropping it entirely instead of leaving a mismatched white control. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+@layer utilities {
+  /* Use on any scrollable container instead of leaving the browser's default (fat)
+     scrollbar — Firefox via scrollbar-width, WebKit/Chromium via the -webkit- pseudo-elements. */
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
 }

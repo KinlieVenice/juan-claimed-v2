@@ -1,14 +1,13 @@
 import * as React from "react";
-import { Lock, X } from "lucide-react";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFieldOptions, hierarchies } from "@/mock/fields.mock";
 import type { DimField } from "@/types/domain";
-import { FloatingLabelField } from "@/components/fields/FloatingLabelField";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TextField, TextareaField, SelectField, MultiSelectField, DurationField, HierarchySelectField, type DurationValue } from "@/components/ui/text-field";
+import { PsgcPhLocationHierarchyField, type PsgcAddressValue } from "@/components/fields/PsgcPhLocationHierarchyField";
+
+const PH_LOCATION_HIERARCHY_KEY = "PH_LOCATION";
 
 export interface FieldInputProps {
   field: DimField;
@@ -22,79 +21,164 @@ const DEFAULT_BADGE = (
   </Badge>
 );
 
+// Adapter layer: maps a DimField (the field-config domain — options/hierarchy come from
+// mock lookups keyed by field id) onto the generic, domain-independent field components in
+// components/ui/text-field.tsx. Keeps the actual field-rendering logic in exactly one place
+// instead of duplicated here per input type.
 export function FieldInput({ field, value, onChange }: FieldInputProps) {
-  const disabled = field.default;
+  const disabled = field.eGovField;
   const badge = disabled ? DEFAULT_BADGE : undefined;
+  const required = field.required;
 
   switch (field.fieldInputType.value) {
-    case "TEXT":
+    case "TEXT": {
+      const isMultiLine = !!field.configJson?.isMultiLine;
+      const TextComponent = isMultiLine ? TextareaField : TextField;
       return (
-        <FloatingLabelField label={field.englishName} hasValue={!!value} required={field.required} disabled={disabled} badge={badge}>
-          <Input
-            value={(value as string) ?? ""}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-auto border-0 p-0 shadow-none focus-visible:ring-0"
-          />
-        </FloatingLabelField>
+        <TextComponent
+          label={field.englishName}
+          value={(value as string) ?? ""}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
       );
+    }
 
     case "NUMBER":
       return (
-        <FloatingLabelField label={field.englishName} hasValue={value !== undefined && value !== null && value !== ""} required={field.required} disabled={disabled} badge={badge}>
-          <Input
-            type="number"
-            value={(value as number) ?? ""}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-            className="h-auto border-0 p-0 shadow-none focus-visible:ring-0"
-          />
-        </FloatingLabelField>
+        <TextField
+          type="number"
+          label={field.englishName}
+          value={value === undefined || value === null ? "" : String(value)}
+          onChange={(v) => onChange(v === "" ? null : Number(v))}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
       );
 
     case "MONEY":
       return (
-        <FloatingLabelField label={field.englishName} hasValue={value !== undefined && value !== null && value !== ""} required={field.required} disabled={disabled} badge={badge}>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-muted-foreground">₱</span>
-            <Input
-              type="number"
-              value={(value as number) ?? ""}
-              disabled={disabled}
-              onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-              className="h-auto border-0 p-0 shadow-none focus-visible:ring-0"
-            />
-          </div>
-        </FloatingLabelField>
+        <TextField
+          type="number"
+          leading="₱"
+          label={field.englishName}
+          value={value === undefined || value === null ? "" : String(value)}
+          onChange={(v) => onChange(v === "" ? null : Number(v))}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
       );
 
     case "DATE":
       return (
-        <FloatingLabelField label={field.englishName} hasValue={!!value} required={field.required} disabled={disabled} badge={badge}>
-          <Input
-            type="date"
-            value={(value as string) ?? ""}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-auto border-0 p-0 shadow-none focus-visible:ring-0"
-          />
-        </FloatingLabelField>
+        <TextField
+          type="date"
+          label={field.englishName}
+          value={(value as string) ?? ""}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
       );
 
     case "BOOLEAN":
       return <BooleanInput field={field} value={value as boolean | undefined} onChange={onChange} disabled={disabled} badge={badge} />;
 
-    case "SINGLE_SELECT":
-      return <SingleSelectInput field={field} value={value as string | undefined} onChange={onChange} disabled={disabled} badge={badge} />;
+    case "SINGLE_SELECT": {
+      const options = getFieldOptions(field.id).map((o) => ({ value: o.value, label: o.englishName, sublabel: o.tagalogName }));
+      return (
+        <SelectField
+          label={field.englishName}
+          value={value as string | undefined}
+          onChange={onChange as (v: string) => void}
+          options={options}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
+      );
+    }
 
-    case "MULTI_SELECT":
-      return <MultiSelectInput field={field} value={(value as string[]) ?? []} onChange={onChange} disabled={disabled} badge={badge} />;
+    case "MULTI_SELECT": {
+      const options = getFieldOptions(field.id).map((o) => ({ value: o.value, label: o.englishName, sublabel: o.tagalogName }));
+      return (
+        <MultiSelectField
+          label={field.englishName}
+          value={(value as string[]) ?? []}
+          onChange={onChange as (v: string[]) => void}
+          options={options}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
+      );
+    }
 
-    case "HIERARCHY_SELECT":
-      return <HierarchySelectInput field={field} value={value as string | undefined} onChange={onChange} disabled={disabled} badge={badge} />;
+    case "HIERARCHY_SELECT": {
+      const hierarchy = hierarchies.find((h) => h.id === field.fieldHierarchyId);
+
+      // Special case: this hierarchy's actual location options aren't pre-seeded nodes —
+      // they're fetched live from the public PSGC API (see PsgcPhLocationHierarchyField.tsx
+      // / backend prisma/seeders/phLocationHierarchySeeder.ts). The stored answer is just
+      // the selected barangay's PSGC code (a plain string), same as any other
+      // HIERARCHY_SELECT value — condition evaluation needs no special handling.
+      if (hierarchy?.key === PH_LOCATION_HIERARCHY_KEY) {
+        return (
+          <PsgcPhLocationHierarchyField
+            label={field.englishName}
+            // Only the leaf PSGC code is stored, not the full cascading selection, so an
+            // already-answered field can't pre-fill its region/province/city pickers from
+            // just that code alone (no reverse PSGC lookup) — it opens empty even when a
+            // value exists. Picking again re-derives and overwrites the same code.
+            value={null}
+            onChange={(v: PsgcAddressValue | null) => onChange(v?.barangayCode ?? null)}
+            required={required}
+            disabled={disabled}
+            badge={badge}
+            hint={hierarchy.englishName}
+          />
+        );
+      }
+
+      const nodes = (hierarchy?.fieldHierarchyNodes ?? []).map((n) => ({
+        id: n.id,
+        value: n.value,
+        label: n.englishName,
+        sublabel: n.tagalogName,
+        parentId: n.parentNodeId,
+      }));
+      const levelLabels = (hierarchy?.fieldHierarchyLevels ?? []).map((l) => l.englishName);
+      return (
+        <HierarchySelectField
+          label={field.englishName}
+          value={value as string | undefined}
+          onChange={onChange as (v: string) => void}
+          nodes={nodes}
+          levelLabels={levelLabels}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+          hint={hierarchy?.englishName}
+        />
+      );
+    }
 
     case "DURATION":
-      return <DurationInput field={field} value={value as { value: number; unit: string } | undefined} onChange={onChange} disabled={disabled} badge={badge} />;
+      return (
+        <DurationField
+          label={field.englishName}
+          value={value as DurationValue | undefined}
+          onChange={onChange as (v: DurationValue) => void}
+          required={required}
+          disabled={disabled}
+          badge={badge}
+        />
+      );
 
     case "REPEATER_GROUP":
       return null; // rendered by RepeaterGroupInput (see FieldForm), not directly here
@@ -148,209 +232,5 @@ function BooleanInput({
         ))}
       </div>
     </div>
-  );
-}
-
-function SingleSelectInput({
-  field,
-  value,
-  onChange,
-  disabled,
-  badge,
-}: {
-  field: DimField;
-  value: string | undefined;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-  badge?: React.ReactNode;
-}) {
-  const options = getFieldOptions(field.id);
-
-  return (
-    <FloatingLabelField label={field.englishName} hasValue={!!value} required={field.required} disabled={disabled} badge={badge}>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="h-auto w-full border-0 p-0 shadow-none focus-visible:ring-0 [&>svg]:ml-auto">
-          <SelectValue placeholder="" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((opt) => (
-            <SelectItem key={opt.id} value={opt.value}>
-              {opt.englishName}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FloatingLabelField>
-  );
-}
-
-function MultiSelectInput({
-  field,
-  value,
-  onChange,
-  disabled,
-  badge,
-}: {
-  field: DimField;
-  value: string[];
-  onChange: (v: string[]) => void;
-  disabled?: boolean;
-  badge?: React.ReactNode;
-}) {
-  const options = getFieldOptions(field.id);
-
-  const toggle = (optValue: string) => {
-    onChange(value.includes(optValue) ? value.filter((v) => v !== optValue) : [...value, optValue]);
-  };
-
-  return (
-    <FloatingLabelField label={field.englishName} hasValue={value.length > 0} required={field.required} disabled={disabled} badge={badge}>
-      <Popover>
-        <PopoverTrigger disabled={disabled} className="flex min-h-6 w-full flex-wrap items-center gap-1 text-left disabled:cursor-not-allowed">
-          {value.length === 0 ? (
-            <span className="text-sm text-muted-foreground">&nbsp;</span>
-          ) : (
-            options
-              .filter((o) => value.includes(o.value))
-              .map((o) => (
-                <Badge key={o.id} variant="secondary" className="gap-1">
-                  {o.englishName}
-                  <X
-                    className="size-3 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggle(o.value);
-                    }}
-                  />
-                </Badge>
-              ))
-          )}
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-2">
-          <div className="flex flex-col gap-1">
-            {options.map((opt) => (
-              <label key={opt.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-                <Checkbox checked={value.includes(opt.value)} onCheckedChange={() => toggle(opt.value)} />
-                {opt.englishName}
-              </label>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </FloatingLabelField>
-  );
-}
-
-function HierarchySelectInput({
-  field,
-  value,
-  onChange,
-  disabled,
-  badge,
-}: {
-  field: DimField;
-  value: string | undefined;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-  badge?: React.ReactNode;
-}) {
-  const hierarchy = hierarchies.find((h) => h.id === field.fieldHierarchyId);
-  const nodes = hierarchy?.fieldHierarchyNodes ?? [];
-  const levels = hierarchy?.fieldHierarchyLevels ?? [];
-
-  // Reconstruct the selected node's ancestor chain so each level's select shows the
-  // right pre-selection when re-opening an already-answered field.
-  const selectedNode = nodes.find((n) => n.value === value);
-  const chain: string[] = [];
-  let walker = selectedNode;
-  while (walker) {
-    chain.unshift(walker.id);
-    walker = walker.parentNodeId ? nodes.find((n) => n.id === walker!.parentNodeId) : undefined;
-  }
-
-  const [path, setPath] = React.useState<string[]>(chain);
-
-  const handleSelectAt = (depth: number, nodeId: string) => {
-    const newPath = [...path.slice(0, depth), nodeId];
-    setPath(newPath);
-    const node = nodes.find((n) => n.id === nodeId);
-    const isLeaf = !nodes.some((n) => n.parentNodeId === nodeId);
-    if (isLeaf && node) onChange(node.value);
-  };
-
-  const columns: { parentId: string | null }[] = [{ parentId: null }, ...path.map((id) => ({ parentId: id }))];
-
-  return (
-    <FloatingLabelField label={field.englishName} hasValue={!!value} required={field.required} disabled={disabled} badge={badge} hint={hierarchy?.englishName}>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1">
-        {columns.map((col, depth) => {
-          const options = nodes.filter((n) => n.parentNodeId === col.parentId);
-          if (options.length === 0) return null;
-          return (
-            <Select key={depth} value={path[depth]} onValueChange={(v) => handleSelectAt(depth, v)} disabled={disabled}>
-              <SelectTrigger size="sm" className="h-8 min-w-32 shrink-0 border-border bg-muted/40">
-                <SelectValue placeholder={levels[depth]?.englishName ?? "Select"} />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.englishName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          );
-        })}
-      </div>
-    </FloatingLabelField>
-  );
-}
-
-const DURATION_UNITS = [
-  { value: "days", label: "Days" },
-  { value: "weeks", label: "Weeks" },
-  { value: "months", label: "Months" },
-  { value: "years", label: "Years" },
-];
-
-function DurationInput({
-  field,
-  value,
-  onChange,
-  disabled,
-  badge,
-}: {
-  field: DimField;
-  value: { value: number; unit: string } | undefined;
-  onChange: (v: { value: number; unit: string }) => void;
-  disabled?: boolean;
-  badge?: React.ReactNode;
-}) {
-  const unit = value?.unit ?? "months";
-
-  return (
-    <FloatingLabelField label={field.englishName} hasValue={value?.value !== undefined} required={field.required} disabled={disabled} badge={badge}>
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          value={value?.value ?? ""}
-          disabled={disabled}
-          onChange={(e) => onChange({ value: e.target.value === "" ? 0 : Number(e.target.value), unit })}
-          className="h-auto w-20 border-0 p-0 shadow-none focus-visible:ring-0"
-        />
-        <Select value={unit} onValueChange={(u) => onChange({ value: value?.value ?? 0, unit: u })} disabled={disabled}>
-          <SelectTrigger size="sm" className="h-7 border-0 bg-muted/50 shadow-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DURATION_UNITS.map((u) => (
-              <SelectItem key={u.value} value={u.value}>
-                {u.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </FloatingLabelField>
   );
 }

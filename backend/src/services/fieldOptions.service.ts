@@ -1,5 +1,5 @@
 import { prisma, Prisma, type DbClient } from "../utils/prisma.js";
-import { generateUniqueCode, namesMatch } from "../utils/slug.util.js";
+import { generateUniqueCode, namesMatch, toSnakeCaseKey } from "../utils/slug.util.js";
 
 export interface FieldOptionInput {
   englishName: string;
@@ -24,8 +24,78 @@ const findFieldOptionByName = async (db: DbClient, fieldId: string, englishName:
   return options.find((option) => namesMatch(option.englishName, englishName) || namesMatch(option.tagalogName, tagalogName)) ?? null;
 };
 
+// Nationality and Country are special-cased: rather than real DimFieldOption rows, their
+// options are synthesized on the fly from DimCountries (backend/data/countries.json, see
+// prisma/seeders/countriesSeeder.ts) — one shared reference dataset backing both fields,
+// which a per-field DimFieldOption row can't do (it only ever belongs to one fieldId).
+// `kind` (which DimCountries column to project) still comes from the field's normalized
+// englishName — the DimField<->DimCountries relation alone can't say THAT, since both
+// fields are connected to the exact same 249 rows.
+const fetchCountryBackedOptions = async (fieldId: string, kind: "NATIONALITY" | "COUNTRY") => {
+  const countries = await prisma.dimCountries.findMany({ where: { fields: { some: { id: fieldId } } }, orderBy: { enShortName: "asc" } });
+
+  const seen = new Set<string>();
+  const options: {
+    id: string;
+    fieldId: string;
+    englishName: string;
+    tagalogName: string;
+    value: string;
+    englishDescription: string;
+    tagalogDescription: string;
+    sortOrder: number;
+  }[] = [];
+
+  for (const country of countries) {
+    // A country's `nationality` can list more than one demonym (e.g. "Réunionese,
+    // Réunionnais") — each becomes its own selectable option, not one comma-joined string.
+    const names =
+      kind === "COUNTRY"
+        ? [country.enShortName]
+        : country.nationality
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean);
+
+    for (const name of names) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      options.push({
+        id: `${kind.toLowerCase()}-${country.alpha3Code}-${options.length}`,
+        fieldId,
+        englishName: name,
+        tagalogName: name,
+        value: name,
+        englishDescription: name,
+        tagalogDescription: name,
+        sortOrder: options.length,
+      });
+    }
+  }
+
+  options.sort((a, b) => a.englishName.localeCompare(b.englishName));
+  options.forEach((option, index) => (option.sortOrder = index));
+
+  return options;
+};
+
 // FETCH ALL OPTIONS FOR A FIELD
 export const fetchFieldOptions = async (fieldId: string) => {
+  const field = await prisma.dimField.findUnique({
+    where: { id: fieldId },
+    select: { englishName: true, _count: { select: { countries: true } } },
+  });
+
+  // The real DimField<->DimCountries relation is the source of truth for "is this field
+  // country-backed at all" (survives a rename, unlike a pure string match would) — only
+  // englishName still decides WHICH column to project, since both consumer fields share
+  // the exact same 249 connected rows.
+  if (field && field._count.countries > 0) {
+    const normalizedName = toSnakeCaseKey(field.englishName);
+    const kind = normalizedName === "NATIONALITY" ? "NATIONALITY" : "COUNTRY";
+    return fetchCountryBackedOptions(fieldId, kind);
+  }
+
   return await prisma.dimFieldOption.findMany({
     where: { fieldId },
     orderBy: { sortOrder: "asc" },
@@ -148,12 +218,13 @@ export const editFieldOptions = async (fieldId: string, options: FieldOptionUpda
   return await prisma.$transaction((tx) => editFieldOptionsWith(tx, fieldId, options));
 };
 
-// REMOVE OPTION
-export const removeFieldOption = async (id: string) => {
+// REMOVE OPTION — fieldId must match, same guard as editOneFieldOption, so an option
+// can't be deleted via a crafted request naming the wrong field's id.
+export const removeFieldOption = async (fieldId: string, id: string) => {
   const existingOption = await prisma.dimFieldOption.findUnique({ where: { id } });
 
-  if (!existingOption) {
-    console.error(`[FieldOptionService] Deletion failed: Option with ID "${id}" does not exist.`);
+  if (!existingOption || existingOption.fieldId !== fieldId) {
+    console.error(`[FieldOptionService] Deletion failed: Option "${id}" does not exist on field "${fieldId}".`);
     throw new Error("FIELD_OPTION_NOT_FOUND");
   }
 

@@ -40,6 +40,10 @@ const mapFieldAnswerError = (res: Response, error: any, message: string) => {
     return res.status(400).json({ success: false, message, error: "The submitted value does not match this field's expected shape.", errorCode: error.message, data: null });
   }
 
+  if (error.message === "ANSWER_VIOLATES_FIELD_CONFIG") {
+    return res.status(400).json({ success: false, message, error: "The submitted value does not meet this field's requirements (length, range, pattern, or selection count).", errorCode: error.message, data: null });
+  }
+
   return null;
 };
 

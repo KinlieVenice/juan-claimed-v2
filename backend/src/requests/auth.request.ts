@@ -15,3 +15,18 @@ export const googleLoginSchema = z.object({
 
 export type GoogleLoginDto = z.infer<typeof googleLoginSchema>;
 export type GoogleLoginRequest = Request<{}, {}, GoogleLoginDto>;
+
+export const egovLoginSchema = z.object({
+  exchangeCode: z.string().min(1),
+});
+
+export type EgovLoginDto = z.infer<typeof egovLoginSchema>;
+export type EgovLoginRequest = Request<{}, {}, EgovLoginDto>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
+export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;
+export type ChangePasswordRequest = Request<{}, {}, ChangePasswordDto>;

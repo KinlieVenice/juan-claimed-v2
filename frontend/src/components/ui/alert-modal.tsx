@@ -1,0 +1,73 @@
+import { CheckCircle2, TriangleAlert, XCircle, Info } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Modal, type ModalSize } from "@/components/ui/modal";
+
+export type AlertVariant = "success" | "warning" | "error" | "info";
+
+const VARIANT_CONFIG: Record<AlertVariant, { icon: typeof CheckCircle2; iconClassName: string; badgeClassName: string }> = {
+  success: { icon: CheckCircle2, iconClassName: "text-emerald-600", badgeClassName: "bg-emerald-500/10" },
+  warning: { icon: TriangleAlert, iconClassName: "text-amber-600", badgeClassName: "bg-amber-500/10" },
+  error: { icon: XCircle, iconClassName: "text-destructive", badgeClassName: "bg-destructive/10" },
+  info: { icon: Info, iconClassName: "text-primary", badgeClassName: "bg-primary/10" },
+};
+
+export interface AlertModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  variant: AlertVariant;
+  /** Defaults to a variant-appropriate title (Success / Warning / Error / Notice) if omitted. */
+  title?: string;
+  /** The backend's own `message`/`error` string — shown as-is, no rewording. */
+  message: string;
+  size?: ModalSize;
+  confirmLabel?: string;
+  onConfirm?: () => void;
+}
+
+const DEFAULT_TITLES: Record<AlertVariant, string> = {
+  success: "Success",
+  warning: "Warning",
+  error: "Something went wrong",
+  info: "Notice",
+};
+
+// A small, centered message dialog — distinct from SidePanel (which is for forms/editing).
+// Backend responses (ApiEnvelope) always carry a human-readable `message` (success) or
+// `error` (failure) string meant to be shown directly, so this is a thin variant-styled
+// shell around that text rather than another place to author copy.
+export function AlertModal({ open, onOpenChange, variant, title, message, size = "xs", confirmLabel = "Close", onConfirm }: AlertModalProps) {
+  const { icon: Icon, iconClassName, badgeClassName } = VARIANT_CONFIG[variant];
+
+  return (
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      size={size}
+      showCloseButton={false}
+      footer={
+        <Button
+          type="button"
+          className="w-full sm:mx-auto sm:w-auto"
+          variant={variant === "error" ? "destructive" : "default"}
+          onClick={() => {
+            onConfirm?.();
+            onOpenChange(false);
+          }}
+        >
+          {confirmLabel}
+        </Button>
+      }
+    >
+      <div className="flex flex-col items-center gap-3 py-2 text-center">
+        <div className={cn("flex size-12 items-center justify-center rounded-full", badgeClassName)}>
+          <Icon className={cn("size-6", iconClassName)} />
+        </div>
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-foreground">{title ?? DEFAULT_TITLES[variant]}</p>
+          <p className="text-sm text-muted-foreground">{message}</p>
+        </div>
+      </div>
+    </Modal>
+  );
+}

@@ -212,10 +212,77 @@ export const setUserActive = async (
       });
     }
 
+    if (error.message === "SUPERADMIN_PROTECTED") {
+      return res.status(403).json({
+        success: false,
+        message: "Could not update user.",
+        error: "Superadmin accounts cannot be deactivated.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
     console.error("[UserController] Error setting user active status:", error);
     return res.status(500).json({
       success: false,
       message: "Could not update user.",
+      error: "An unexpected error occurred on the server.",
+      errorCode: "SERVER_ERROR",
+      data: null,
+    });
+  }
+};
+
+export const resetUserPassword = async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const result = await userService.resetUserPassword(req.params.id, req.user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully. Share the temporary password with the user — it will not be shown again.",
+      error: null,
+      errorCode: null,
+      data: result,
+    });
+  } catch (error: any) {
+    if (error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Could not reset password.",
+        error: "The requested user does not exist.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    if (error.message === "USER_HAS_NO_PASSWORD") {
+      return res.status(400).json({
+        success: false,
+        message: "Could not reset password.",
+        error: "This account signs in via Google/eGovPH and has no password to reset.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    if (error.message === "SUPERADMIN_PROTECTED") {
+      return res.status(403).json({
+        success: false,
+        message: "Could not reset password.",
+        error: "Superadmin passwords cannot be reset from this endpoint.",
+        errorCode: error.message,
+        data: null,
+      });
+    }
+
+    console.error("[UserController] Error resetting user password:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not reset password.",
       error: "An unexpected error occurred on the server.",
       errorCode: "SERVER_ERROR",
       data: null,

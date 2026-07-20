@@ -7,7 +7,9 @@ Auth: every protected route runs the `mockAuth` middleware (kept under that name
 2. No `Authorization` header, `NODE_ENV !== "production"` → falls back to the original `x-user-id: <DimUser.id>` header (dev/testing only, same active/deleted checks apply).
 3. No `Authorization` header, `NODE_ENV === "production"` → `401` immediately, the mock path can't activate.
 
-Get a token via `POST /api/auth/login` (username+password, AGENT/SUPERADMIN) or `POST /api/auth/google` (Google ID token, USER — auto-creates the account on first login).
+Get a token via `POST /api/auth/login` (username+password, AGENT/SUPERADMIN), `POST /api/auth/google` (Google ID token, USER — auto-creates the account on first login), or `POST /api/auth/egov` (eGovPH SSO exchange code, USER — same auto-create behavior).
+
+**Docker Compose note:** `GOOGLE_CLIENT_ID`/`JWT_SECRET`/`EGOV_PARTNER_CODE`/`EGOV_PARTNER_SECRET` live in the repo-root `.env` (not `backend/.env`) and are passed into the `backend` service via `${VAR}` interpolation in `docker-compose.yml`'s `environment:` block — Compose only auto-loads root `.env` for that interpolation, not as a blanket env-file, so any new secret needs an explicit line added there too, not just a new line in `.env`.
 
 **Response envelope — Shape B everywhere now**: `{ success, message, error, errorCode, data }` on both success and error. (Groups controller has its own bespoke messages/errorCodes per action; benefits/sub-resources/users/scopes share the `handleApiError`/`sendSuccess` helpers in `utils/errorMapping.util.ts` / `utils/apiResponse.util.ts`.)
 
@@ -46,8 +48,31 @@ No auth. Body (zod `googleLoginSchema`): `{ idToken }` — a **Google ID token**
 
 Google sign-in only ever creates `USER`-role accounts — AGENT/SUPERADMIN accounts are created by a SUPERADMIN via `POST /api/users` and always log in with username+password.
 
+### `POST /api/auth/egov` — eGovPH SSO sign-in
+No auth. Body (zod `egovLoginSchema`): `{ exchangeCode }` — a one-time code from **eGov App SSO API v2** (`https://e.gov.ph/developers#api-tabs`), not something this backend issues.
+
+**How it works, end to end:**
+
+1. **eGov app** generates the exchange code when the applicant logs in there (identified by our `partner_code`) and hands it to our app. There's no registered redirect/callback URL yet (that's issued by the eGov administrator alongside the partner credentials), so for now the frontend collects this via a dev-mode "paste your exchange code" input (obtained from eGov's own "Generate Exchange Code" playground) rather than a real redirect. Swapping to a real redirect flow later only touches that one frontend step — this route's contract doesn't change.
+2. **Backend** exchanges it for a one-time `access_token`: `POST https://oauth.e.gov.ph/api/token` (form-data `partner_code`, `partner_secret`, `scope: SSO_AUTHENTICATION`, `exchange_code`).
+3. **Backend** uses that token to fetch the applicant's eGov profile: `POST https://oauth.e.gov.ph/api/partner/sso_authentication` (`Authorization: Bearer <access_token>`) → `{ uniqid, email, first_name, last_name, photo, birth_date, address, region_code/province_code/municipality_code/barangay_code, ... }` (only `uniqid`/`email`/`first_name`/`last_name`/`photo` are read today — the rest is there for a later "sync default fields from eGov" pass, not yet built).
+4. **First-time login** → creates a `DimUser` row: `role: "USER"`, `egovId: uniqid`, `email`, `firstName`/`lastName`, `avatarUrl: photo`, `username` auto-derived from the email local part (same collision handling as Google). `scopeId`/`groupId`/`psgcCode` all `null`, same as Google.
+5. **Returning login** → looked up by `egovId`, no new row created.
+6. Backend returns `{ token, user }` — same shape as `/api/auth/login`/`/api/auth/google`, this backend's own JWT.
+
+`200` → `data: { token, user }`. `401` `INVALID_CREDENTIALS` if either eGov call fails (bad/expired exchange code, bad partner credentials, malformed profile response). `403` `FORBIDDEN` if the matched account is deactivated.
+
+**Env vars needed:** `EGOV_PARTNER_CODE`/`EGOV_PARTNER_SECRET` in `backend/.env` (or the repo-root `.env` — see the Docker Compose note below), furnished by the eGov administrator. Not yet obtained as of this writing — the route fails cleanly with `401 INVALID_CREDENTIALS` until real values are set, doesn't 500.
+
+eGov sign-in only ever creates `USER`-role accounts, same as Google.
+
 ### `GET /api/auth/me`
-Authenticated (runs through the real `mockAuth` middleware). `200` → `data: <current req.user>` (no `passHash`). Useful for the frontend to rehydrate a session from a stored token.
+Authenticated (runs through the real `mockAuth` middleware). `200` → `data: <current req.user>` (no `passHash`). Useful for the frontend to rehydrate a session from a stored token. Includes `forceResetPassword` — the frontend checks this on every login/rehydrate and redirects straight to a change-password screen if `true`, before anything else.
+
+### `POST /api/auth/change-password`
+Authenticated. Body (zod `changePasswordSchema`): `{ currentPassword, newPassword }` (`newPassword` min 8 chars). Self-service — works for the caller's own account only, requires proving the current password (so a hijacked session token alone can't silently take it over). Used both for the forced flow after a Superadmin password reset, and any later voluntary change.
+
+`200` → `data: User` (no `passHash`). Also clears `forceResetPassword` back to `false`. `401` `INVALID_CREDENTIALS` if `currentPassword` doesn't match, the account is deactivated, or has no password at all (a `USER`-role/Google/eGov account).
 
 ---
 
@@ -108,9 +133,14 @@ Body (`createUpdateGroupSchema`):
   "tagalogDescription": "string"
 }
 ```
-`201` → `data: Group` (note: `createdById` stays `null` — `group.service.ts` doesn't stamp it, per `tofix.md`). `400` `VALIDATION_ERROR` on bad body. `500` on any other error (no specific error-code mapping in this controller beyond zod's).
+`201` → `data: Group`, `createdById` stamped from the authenticated superadmin. `400` `VALIDATION_ERROR` on bad body. `401` if unauthenticated. `500` on any other error (no specific error-code mapping in this controller beyond zod's).
 
-No edit/delete endpoints exist for groups yet (delete intentionally deferred).
+### `PUT /api/groups/:id`
+Requires `mockAuth` + `requireRole(MANAGE_GROUPS)` → **SUPERADMIN only**, then `validateBody(createUpdateGroupSchema)`. Same body shape as create (full replace, not a partial patch).
+
+`200` → `data: Group`, `updatedById` stamped. `404` `GROUP_NOT_FOUND`. `400` `VALIDATION_ERROR`. `401` if unauthenticated.
+
+No delete endpoint exists for groups (intentionally deferred).
 
 ---
 
@@ -174,7 +204,14 @@ Same matrix table as create (no password field — only reassigns role/scope/gro
 ### `PATCH /api/users/:id/active` — activate/deactivate
 `mockAuth` + `requireRole(MANAGE_USERS)` → SUPERADMIN only. Body (zod `setUserActiveSchema`): `{ active: boolean }`.
 
-`200` → `data: User`. A deactivated user is rejected at `POST /api/auth/login`/`POST /api/auth/google` (`401`/`403`) and at every other route's auth check (`403`) — this is what actually gates access, checked live, not just at login time. Errors: `404` `USER_NOT_FOUND`.
+`200` → `data: User`. A deactivated user is rejected at `POST /api/auth/login`/`POST /api/auth/google` (`401`/`403`) and at every other route's auth check (`403`) — this is what actually gates access, checked live, not just at login time. Errors: `404` `USER_NOT_FOUND`; `403` `SUPERADMIN_PROTECTED` (target is a `SUPERADMIN` — enforced server-side, not just hidden in the admin UI, after an incident where testing the UI action deactivated the only active Superadmin and self-locked the account).
+
+### `POST /api/users/:id/reset-password` — reset a staff account's password
+`mockAuth` + `requireRole(MANAGE_USERS)` → SUPERADMIN only. No body.
+
+Generates a fresh 8-character temporary password (`generateTempPassword` in `utils/password.ts` — excludes visually-ambiguous characters like `0`/`O`, `1`/`I`/`l`), hashes it, sets it as the target user's `passHash`, and sets `forceResetPassword: true`.
+
+`200` → `data: { user: User, temporaryPassword: string }`. **`temporaryPassword` is the only time this ever appears in plaintext** — not stored anywhere, not retrievable again. Relay it to the account holder out of band; they must log in with it via `POST /api/auth/login`, and the frontend forces them straight to a change-password screen (`user.forceResetPassword === true` in the login response) before anything else. Errors: `404` `USER_NOT_FOUND`; `400` `USER_HAS_NO_PASSWORD` (target is a `USER`-role account — those sign in via Google/eGov and have no password to reset); `403` `SUPERADMIN_PROTECTED` (target is a `SUPERADMIN` — enforced server-side, same reasoning as the deactivate guard above).
 
 ### `DELETE /api/users/:id` — soft delete
 `mockAuth` + `requireRole(MANAGE_USERS)` → SUPERADMIN only. No body. Sets `deletedAt` + `updatedById`.
@@ -278,12 +315,19 @@ Identical shape/rules to Requirements, targeting `FctBenefitUtilization`. Same f
 
 ---
 
+## Benefit How to Apply — `/api/benefits/:benefitId/how-to-apply`
+
+Identical shape/rules to Requirements, targeting `FctBenefitHowToApply`. Same fields, same permission naming pattern (`CREATE_BENEFIT_HOW_TO_APPLIES`/`EDIT_BENEFIT_HOW_TO_APPLIES`/`DELETE_BENEFIT_HOW_TO_APPLIES`), not-found code `HOW_TO_APPLY_NOT_FOUND`.
+
+---
+
 ## Benefit Requirement Attachments — `/api/benefits/:benefitId/requirements/:id/attachments`
 ## Benefit Utilization Attachments — `/api/benefits/:benefitId/utilizations/:id/attachments`
+## Benefit How to Apply Attachments — `/api/benefits/:benefitId/how-to-apply/:id/attachments`
 
-**Attachments hang off a requirement or utilization, never the benefit directly** (per schema design). `entityType` is always `"fct_benefit_requirement"` or `"fct_benefit_utilization"` accordingly, `entityId` is always that requirement/utilization's id — both set server-side, not client input. **Metadata-only** — this route never receives file bytes. Actual file upload happens against Vercel Blob directly (see the "Attachments & Vercel Blob" section below); this route just records the resulting URL + file info.
+**Attachments hang off a requirement, utilization, or how-to-apply row, never the benefit directly** (per schema design). `entityType` is always `"fct_benefit_requirement"` / `"fct_benefit_utilization"` / `"fct_benefit_how_to_apply"` accordingly, `entityId` is always that parent row's id — both set server-side, not client input. **Metadata-only** — this route never receives file bytes. Actual file upload happens against Vercel Blob directly (see the "Attachments & Vercel Blob" section below); this route just records the resulting URL + file info.
 
-Every request checks: the parent benefit exists + acting user authorized over it, **and** the specific requirement/utilization (`:id` in the path) exists, isn't deleted, and belongs to that benefit — 404 with the parent-specific not-found code otherwise.
+Every request checks: the parent benefit exists + acting user authorized over it, **and** the specific requirement/utilization/how-to-apply row (`:id` in the path) exists, isn't deleted, and belongs to that benefit — 404 with the parent-specific not-found code otherwise.
 
 ### `GET .../attachments`
 `requireRole(PARTICIPATE)`. `200` → `data: Attachment[]` (active only, `fileSize` as **string**).
@@ -309,7 +353,7 @@ Body (zod `benefitAttachmentSchema`):
 - `application/msword` (`.doc`)
 - `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (`.docx`)
 
-`201` → `data: Attachment`. **Note:** `fileSize` is a `BigInt` column — always serialized as a JSON **string** (e.g. `"204800"`, not `204800`). Errors: `403` `FORBIDDEN`, `404` `BENEFIT_NOT_FOUND` / `REQUIREMENT_NOT_FOUND` / `UTILIZATION_NOT_FOUND`, `400` zod validation.
+`201` → `data: Attachment`. **Note:** `fileSize` is a `BigInt` column — always serialized as a JSON **string** (e.g. `"204800"`, not `204800`). Errors: `403` `FORBIDDEN`, `404` `BENEFIT_NOT_FOUND` / `REQUIREMENT_NOT_FOUND` / `UTILIZATION_NOT_FOUND` / `HOW_TO_APPLY_NOT_FOUND`, `400` zod validation.
 
 ### `PATCH .../attachments/:attachmentId`
 `requireRole(EDIT_BENEFIT_ATTACHMENTS)`. Same body as create. `200` → `data: Attachment`. `404` `ATTACHMENT_NOT_FOUND` / parent not found.

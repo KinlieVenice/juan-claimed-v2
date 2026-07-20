@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { UserRound } from "lucide-react";
 import { fields } from "@/mock/fields.mock";
 import { useAnswers } from "@/lib/answers-store";
-import { useAuth } from "@/lib/mock-auth";
+import { useAuth } from "@/lib/auth";
 import { FieldForm } from "@/components/fields/FieldForm";
 import { EmptyState } from "@/components/EmptyState";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";

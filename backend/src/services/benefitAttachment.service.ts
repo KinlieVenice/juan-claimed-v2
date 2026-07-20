@@ -8,6 +8,7 @@ type Db = typeof prisma | Prisma.TransactionClient;
 const NOT_FOUND_CODE: Record<AttachmentParentType, string> = {
   REQUIREMENT: "REQUIREMENT_NOT_FOUND",
   UTILIZATION: "UTILIZATION_NOT_FOUND",
+  HOW_TO_APPLY: "HOW_TO_APPLY_NOT_FOUND",
 };
 
 const assertParentExists = async (
@@ -24,9 +25,13 @@ const assertParentExists = async (
       ? await db.fctBenefitRequirement.findFirst({
           where: { id: parentId, benefitId, deletedAt: null },
         })
-      : await db.fctBenefitUtilization.findFirst({
-          where: { id: parentId, benefitId, deletedAt: null },
-        });
+      : parentType === "UTILIZATION"
+        ? await db.fctBenefitUtilization.findFirst({
+            where: { id: parentId, benefitId, deletedAt: null },
+          })
+        : await db.fctBenefitHowToApply.findFirst({
+            where: { id: parentId, benefitId, deletedAt: null },
+          });
 
   if (!parent) throw new Error(NOT_FOUND_CODE[parentType]);
 };

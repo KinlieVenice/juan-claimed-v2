@@ -1,18 +1,84 @@
 import * as React from "react";
-import { ListChecks, Plus, Lock } from "lucide-react";
-import { getFields } from "@/services/fields.service";
-import type { DimField } from "@/types/domain";
-import { EmptyState } from "@/components/EmptyState";
+import { Plus } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { getFields, getFieldInputTypes, getFieldConditionOperators, reorderFields } from "@/services/fields.service";
+import { getHierarchies } from "@/services/fieldHierarchy.service";
+import type { DimField, DimFieldConditionOperator, DimFieldHierarchy, DimFieldInputType, FieldClassification } from "@/types/domain";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { SortableFieldList } from "@/components/admin/SortableFieldList";
+import { FieldFormModal } from "@/components/admin/FieldFormModal";
 
 export function FieldsAdminPage() {
+  const { token, role } = useAuth();
+  const canCreateGlobal = role === "SUPERADMIN";
+  const canCreateFollowUp = role === "SUPERADMIN" || role === "AGENT";
+
+  const [tab, setTab] = React.useState<FieldClassification>("GLOBAL");
   const [fields, setFields] = React.useState<DimField[] | null>(null);
+  const [inputTypes, setInputTypes] = React.useState<DimFieldInputType[]>([]);
+  const [operators, setOperators] = React.useState<DimFieldConditionOperator[]>([]);
+  const [hierarchies, setHierarchies] = React.useState<DimFieldHierarchy[]>([]);
+
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editTarget, setEditTarget] = React.useState<DimField | null>(null);
+  const [viewOnly, setViewOnly] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    if (!token) return;
+    getFields(token).then(setFields);
+  }, [token]);
 
   React.useEffect(() => {
-    getFields().then(setFields);
-  }, []);
+    load();
+  }, [load]);
+
+  React.useEffect(() => {
+    if (!token) return;
+    getFieldInputTypes(token).then(setInputTypes);
+    getFieldConditionOperators(undefined, token).then(setOperators);
+    getHierarchies(token).then(setHierarchies);
+  }, [token]);
+
+  const topLevelFields = React.useMemo(() => (fields ?? []).filter((f) => f.parentFieldId === null), [fields]);
+  const globalFields = React.useMemo(() => topLevelFields.filter((f) => f.classification === "GLOBAL"), [topLevelFields]);
+  const followUpFields = React.useMemo(() => topLevelFields.filter((f) => f.classification === "FOLLOW_UP"), [topLevelFields]);
+
+  const openCreate = (classification: FieldClassification) => {
+    setEditTarget(null);
+    setViewOnly(false);
+    setTab(classification);
+    setFormOpen(true);
+  };
+
+  const openEdit = (field: DimField) => {
+    setEditTarget(field);
+    setViewOnly(false);
+    setFormOpen(true);
+  };
+
+  const openView = (field: DimField) => {
+    setEditTarget(field);
+    setViewOnly(true);
+    setFormOpen(true);
+  };
+
+  const handleReorder = async (classification: FieldClassification, orderedIds: string[]) => {
+    if (!token) return;
+    // orderedIds is only the TOP-LEVEL fields in this classification (SortableFieldList
+    // excludes anchored children from drag-and-drop — see its module comment) — reorder
+    // just those, leaving anchored children's own anchor-scoped sortOrder untouched.
+    const orderedIdSet = new Set(orderedIds);
+    setFields((prev) => {
+      if (!prev) return prev;
+      const rank = new Map(orderedIds.map((id, i) => [id, i]));
+      const rest = prev.filter((f) => !orderedIdSet.has(f.id));
+      const reordered = prev.filter((f) => orderedIdSet.has(f.id)).sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+      return [...rest, ...reordered];
+    });
+    await reorderFields(classification, orderedIds, token);
+    load();
+  };
 
   return (
     <div className="space-y-6">
@@ -21,51 +87,54 @@ export function FieldsAdminPage() {
           <h1 className="text-xl font-bold text-foreground">Fields</h1>
           <p className="text-sm text-muted-foreground">Questions applicants answer to determine eligibility.</p>
         </div>
-        <Button size="sm">
-          <Plus /> Add Field
-        </Button>
+        {((tab === "GLOBAL" && canCreateGlobal) || (tab === "FOLLOW_UP" && canCreateFollowUp)) && (
+          <Button size="sm" onClick={() => openCreate(tab)}>
+            <Plus /> Add Field
+          </Button>
+        )}
       </div>
 
-      {fields === null ? (
-        <div className="h-40 animate-pulse rounded-xl bg-muted/60" />
-      ) : fields.length === 0 ? (
-        <EmptyState icon={ListChecks} title="No Fields" description="Add your first field to get started." />
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Classification</TableHead>
-                <TableHead>Required</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {fields
-                .filter((f) => f.parentFieldId === null)
-                .map((f) => (
-                  <TableRow key={f.id}>
-                    <TableCell className="font-medium text-foreground">{f.englishName}</TableCell>
-                    <TableCell className="text-muted-foreground">{f.fieldInputType.englishName}</TableCell>
-                    <TableCell>
-                      <Badge variant={f.classification === "GLOBAL" ? "outline" : "secondary"}>{f.classification}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{f.required ? "Yes" : "No"}</TableCell>
-                    <TableCell>
-                      {f.default && (
-                        <Badge variant="secondary" className="gap-1 text-[10px]">
-                          <Lock className="size-2.5" /> eGovPH
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as FieldClassification)}>
+        <TabsList>
+          <TabsTrigger value="GLOBAL">Global</TabsTrigger>
+          <TabsTrigger value="FOLLOW_UP">Follow Ups</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="GLOBAL">
+          <SortableFieldList
+            fields={fields === null ? null : globalFields}
+            onReorder={(ids) => handleReorder("GLOBAL", ids)}
+            onEdit={openEdit}
+            onView={openView}
+            canReorder={canCreateGlobal}
+            emptyAction={canCreateGlobal ? { label: "Add Field", onClick: () => openCreate("GLOBAL") } : undefined}
+          />
+        </TabsContent>
+
+        <TabsContent value="FOLLOW_UP">
+          <SortableFieldList
+            fields={fields === null ? null : followUpFields}
+            onReorder={(ids) => handleReorder("FOLLOW_UP", ids)}
+            onEdit={openEdit}
+            onView={openView}
+            canReorder={canCreateFollowUp}
+            emptyAction={canCreateFollowUp ? { label: "Add Field", onClick: () => openCreate("FOLLOW_UP") } : undefined}
+          />
+        </TabsContent>
+      </Tabs>
+
+      <FieldFormModal
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        field={editTarget}
+        viewOnly={viewOnly}
+        classification={tab}
+        allFields={fields ?? []}
+        inputTypes={inputTypes}
+        operators={operators}
+        hierarchies={hierarchies}
+        onSaved={load}
+      />
     </div>
   );
 }

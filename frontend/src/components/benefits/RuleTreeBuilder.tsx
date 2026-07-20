@@ -1,22 +1,35 @@
 import { Plus, Trash2, FolderPlus } from "lucide-react";
-import { getConditionOperators } from "@/mock/fields.mock";
-import type { DimField, RuleTreeNode, RuleTreeRoot } from "@/types/domain";
+import type { DimField, DimFieldConditionOperator, DimFieldHierarchy, RuleTreeNode, RuleTreeRoot } from "@/types/domain";
 import { ConditionValueInput } from "@/components/fields/ConditionValueInput";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Badge } from "@/components/ui/badge";
 
 interface RuleTreeBuilderProps {
   fields: DimField[];
+  /** The full real operator set (GET /api/field-condition-operators) — filtered per field's
+   * own fieldInputTypeId as needed, same pattern as the Fields module's
+   * FieldConditionTreeBuilder.tsx, instead of the old mock/fields.mock.ts lookup. */
+  operators: DimFieldConditionOperator[];
+  hierarchies: DimFieldHierarchy[];
   tree: RuleTreeRoot;
   onChange: (tree: RuleTreeRoot) => void;
 }
 
 const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `id-${Math.random().toString(36).slice(2)}`);
 
-function emptyCondition(fields: DimField[]): RuleTreeNode {
+const LOGICAL_OPERATOR_OPTIONS = [
+  { value: "ALL", label: "ALL of" },
+  { value: "ANY", label: "ANY of" },
+];
+
+function operatorsFor(operators: DimFieldConditionOperator[], fieldInputTypeId: string): DimFieldConditionOperator[] {
+  return operators.filter((o) => o.fieldInputTypeId === fieldInputTypeId);
+}
+
+function emptyCondition(fields: DimField[], operators: DimFieldConditionOperator[]): RuleTreeNode {
   const field = fields[0];
-  const operator = field ? getConditionOperators(field.fieldInputTypeId)[0] : undefined;
+  const operator = field ? operatorsFor(operators, field.fieldInputTypeId)[0] : undefined;
   return { kind: "condition", id: newId(), fieldId: field?.id ?? "", fieldConditionOperatorId: operator?.id ?? "", conditionFieldValue: null };
 }
 
@@ -27,17 +40,21 @@ function emptyGroup(): RuleTreeNode {
 // Recursive AND/OR eligibility condition tree editor — the composite payload this
 // produces is the same RuleTreeRoot shape the mock eligibility matcher consumes
 // (src/lib/eligibility.ts) and mirrors the real backend's dynamic-rule-tree shape.
-export function RuleTreeBuilder({ fields, tree, onChange }: RuleTreeBuilderProps) {
-  return <GroupEditor fields={fields} node={tree} onChange={(n) => onChange(n as RuleTreeRoot)} depth={0} />;
+export function RuleTreeBuilder({ fields, operators, hierarchies, tree, onChange }: RuleTreeBuilderProps) {
+  return <GroupEditor fields={fields} operators={operators} hierarchies={hierarchies} node={tree} onChange={(n) => onChange(n as RuleTreeRoot)} depth={0} />;
 }
 
 function GroupEditor({
   fields,
+  operators,
+  hierarchies,
   node,
   onChange,
   depth,
 }: {
   fields: DimField[];
+  operators: DimFieldConditionOperator[];
+  hierarchies: DimFieldHierarchy[];
   node: Extract<RuleTreeNode, { kind: "group" }>;
   onChange: (node: RuleTreeNode) => void;
   depth: number;
@@ -56,15 +73,12 @@ function GroupEditor({
     <div className={depth > 0 ? "rounded-lg border border-border bg-muted/20 p-3" : ""}>
       <div className="mb-3 flex items-center gap-2">
         <span className="text-xs font-medium text-muted-foreground">Match</span>
-        <Select value={node.logicalOperator} onValueChange={(v) => onChange({ ...node, logicalOperator: v as "ALL" | "ANY" })}>
-          <SelectTrigger size="sm" className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">ALL of</SelectItem>
-            <SelectItem value="ANY">ANY of</SelectItem>
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={node.logicalOperator}
+          onChange={(v) => onChange({ ...node, logicalOperator: v as "ALL" | "ANY" })}
+          options={LOGICAL_OPERATOR_OPTIONS}
+          triggerClassName="w-24"
+        />
         <span className="text-xs text-muted-foreground">the following conditions:</span>
       </div>
 
@@ -75,7 +89,7 @@ function GroupEditor({
           child.kind === "group" ? (
             <div key={child.id} className="flex items-start gap-2">
               <div className="flex-1">
-                <GroupEditor fields={fields} node={child} onChange={(c) => updateChild(index, c)} depth={depth + 1} />
+                <GroupEditor fields={fields} operators={operators} hierarchies={hierarchies} node={child} onChange={(c) => updateChild(index, c)} depth={depth + 1} />
               </div>
               <Button type="button" size="icon" variant="ghost" className="mt-1 size-7 text-muted-foreground hover:text-destructive" onClick={() => removeChild(index)}>
                 <Trash2 className="size-3.5" />
@@ -85,6 +99,8 @@ function GroupEditor({
             <ConditionLeafEditor
               key={child.id}
               fields={fields}
+              operators={operators}
+              hierarchies={hierarchies}
               node={child}
               onChange={(c) => updateChild(index, c)}
               onRemove={() => removeChild(index)}
@@ -94,7 +110,7 @@ function GroupEditor({
       </div>
 
       <div className="mt-3 flex gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={() => onChange({ ...node, children: [...node.children, emptyCondition(fields)] })}>
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange({ ...node, children: [...node.children, emptyCondition(fields, operators)] })}>
           <Plus /> Add Condition
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => onChange({ ...node, children: [...node.children, emptyGroup()] })}>
@@ -107,57 +123,51 @@ function GroupEditor({
 
 function ConditionLeafEditor({
   fields,
+  operators,
+  hierarchies,
   node,
   onChange,
   onRemove,
 }: {
   fields: DimField[];
+  operators: DimFieldConditionOperator[];
+  hierarchies: DimFieldHierarchy[];
   node: Extract<RuleTreeNode, { kind: "condition" }>;
   onChange: (node: RuleTreeNode) => void;
   onRemove: () => void;
 }) {
   const field = fields.find((f) => f.id === node.fieldId);
-  const operators = field ? getConditionOperators(field.fieldInputTypeId) : [];
-  const operator = operators.find((o) => o.id === node.fieldConditionOperatorId);
+  const fieldOperators = field ? operatorsFor(operators, field.fieldInputTypeId) : [];
+  const operator = fieldOperators.find((o) => o.id === node.fieldConditionOperatorId);
 
   const handleFieldChange = (fieldId: string) => {
     const nextField = fields.find((f) => f.id === fieldId);
-    const nextOperator = nextField ? getConditionOperators(nextField.fieldInputTypeId)[0] : undefined;
+    const nextOperator = nextField ? operatorsFor(operators, nextField.fieldInputTypeId)[0] : undefined;
     onChange({ ...node, fieldId, fieldConditionOperatorId: nextOperator?.id ?? "", conditionFieldValue: null });
   };
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
-      <Select value={node.fieldId} onValueChange={handleFieldChange}>
-        <SelectTrigger size="sm" className="w-48">
-          <SelectValue placeholder="Select field" />
-        </SelectTrigger>
-        <SelectContent>
-          {fields.map((f) => (
-            <SelectItem key={f.id} value={f.id}>
-              {f.englishName}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <SearchableSelect
+        value={node.fieldId}
+        onChange={handleFieldChange}
+        options={fields.map((f) => ({ value: f.id, label: f.englishName, sublabel: f.tagalogName }))}
+        placeholder="Field"
+        triggerClassName="w-48"
+      />
 
       {field && (
-        <Select value={node.fieldConditionOperatorId} onValueChange={(v) => onChange({ ...node, fieldConditionOperatorId: v, conditionFieldValue: null })}>
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="Operator" />
-          </SelectTrigger>
-          <SelectContent>
-            {operators.map((o) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.englishName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={node.fieldConditionOperatorId}
+          onChange={(v) => onChange({ ...node, fieldConditionOperatorId: v, conditionFieldValue: null })}
+          options={fieldOperators.map((o) => ({ value: o.id, label: o.englishName, sublabel: o.tagalogName }))}
+          placeholder="Operator"
+          triggerClassName="w-40"
+        />
       )}
 
       {field && operator && (
-        <ConditionValueInput field={field} operator={operator} value={node.conditionFieldValue} onChange={(v) => onChange({ ...node, conditionFieldValue: v })} />
+        <ConditionValueInput field={field} operator={operator} hierarchies={hierarchies} value={node.conditionFieldValue} onChange={(v) => onChange({ ...node, conditionFieldValue: v })} />
       )}
 
       {field?.default && (

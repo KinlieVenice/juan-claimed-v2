@@ -1,6 +1,8 @@
 import { Plus, Trash2 } from "lucide-react";
 import { getSubfields } from "@/mock/fields.mock";
 import { useAnswers } from "@/lib/answers-store";
+import { flattenAnchorOrder } from "@/lib/field-anchoring";
+import { isFieldVisible } from "@/lib/field-visibility";
 import type { DimField } from "@/types/domain";
 import { FieldInput } from "@/components/fields/FieldInput";
 import { Button } from "@/components/ui/button";
@@ -16,10 +18,19 @@ interface FieldFormProps {
 // 2-column grid of FieldInputs (Desktop 10 / 11's form pattern), used by both the initial
 // Form page and Answer More. REPEATER_GROUP fields span the full width and render as a
 // repeatable list of sub-forms instead of a single control.
+//
+// Two things happen here that the raw `fields` prop doesn't already guarantee: anchored
+// "Children Dependents" are reordered to render immediately after the field they're
+// anchored to (flattenAnchorOrder — same grouping SortableFieldList.tsx uses in the admin
+// UI), and every field's own dynamicCondition is evaluated live against `values` so a
+// field genuinely appears/disappears as the applicant answers (isFieldVisible) instead of
+// dynamicCondition being purely a server-side-at-submit-time concept.
 export function FieldForm({ fields, values, onChange, columns = 2 }: FieldFormProps) {
+  const orderedFields = flattenAnchorOrder(fields).filter((field) => isFieldVisible(field, values));
+
   return (
     <div className={columns === 2 ? "grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2" : "flex flex-col gap-6"}>
-      {fields.map((field) =>
+      {orderedFields.map((field) =>
         field.fieldInputType.value === "REPEATER_GROUP" ? (
           <div key={field.id} className="sm:col-span-2">
             <RepeaterGroupInput field={field} />
@@ -45,7 +56,7 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">{field.englishName}</p>
-          <p className="text-xs text-muted-foreground">{field.description}</p>
+          <p className="text-xs text-muted-foreground">{field.englishDescription}</p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={() => addAnswerGroup(field.id)}>
           <Plus /> Add another

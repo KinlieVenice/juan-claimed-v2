@@ -3,6 +3,7 @@ import {
   getAllGroups,
   getGroupById,
   createGroup,
+  updateGroup,
 } from "../controllers/group.controller.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
 import { createUpdateGroupSchema } from "../requests/group.request.js";
@@ -23,7 +24,13 @@ groupRouter.post(
   createGroup,
 );
 
-// Note: If you added an update/delete function in your group controller later,
-// you can easily plug them in like this:
-// groupRouter.put("/:id", validateBody(createUpdateGroupSchema), updateGroup);
-// groupRouter.delete("/:id", deleteGroup);
+groupRouter.put(
+  "/:id",
+  mockAuth,
+  requireRole(PERMISSIONS.MANAGE_GROUPS),
+  validateBody(createUpdateGroupSchema),
+  updateGroup,
+);
+
+// Note: no DELETE route — destructive group deletion is deferred (deliberately, matching
+// this app's broader pattern of not shipping delete UI/routes unless explicitly requested).

@@ -302,8 +302,15 @@ export const createHierarchyWith = async (db: DbClient, data: CreateHierarchyInp
     throw new Error("DUPLICATE_HIERARCHY");
   }
 
+  // Generated once here, same as DimField.key/DimFieldOption.value/DimFieldHierarchyNode.value
+  // — there is no "edit an existing hierarchy" path today (a field's own edit always
+  // creates a NEW hierarchy, see field.service.ts), so immutability is automatic; this
+  // generator is just never called again for an existing row. Special, hand-picked keys
+  // like "PH_LOCATION" (no hex prefix) are reserved for system-seeded hierarchies only
+  // (see prisma/seeders/phLocationHierarchySeeder.ts) — never produced here.
   const hierarchy = await db.dimFieldHierarchy.create({
     data: {
+      key: generateUniqueCode(data.englishName),
       englishName: data.englishName,
       tagalogName: data.tagalogName,
       englishDescription: data.englishDescription,
