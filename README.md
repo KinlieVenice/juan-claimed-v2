@@ -16,13 +16,16 @@ cd juan-claimed-v2
 docker compose up -d --build
 ```
 
-This starts 3 containers:
+This starts 4 containers:
 
-| Service  | Port | URL                    |
-|----------|------|------------------------|
-| frontend | 5173 | http://localhost:5173  |
-| backend  | 4000 | http://localhost:4000  |
-| postgres | 5432 | localhost:5432          |
+| Service      | Port | URL                   |
+| ------------ | ---- | --------------------- |
+| frontend     | 5175 | http://localhost:5175 |
+| landing-page | 5176 | http://localhost:5176 |
+| backend      | 4000 | http://localhost:4000 |
+| postgres     | 5432 | localhost:5432        |
+
+`landing-page` is a separate Vite/React/bun app (`landing-page/`), copied in from another repo, not part of the main app's build. Its "Explore your benefits" button routes to the main frontend via the `VITE_APP_URL` env var, set in `docker-compose.yml`.
 
 First boot, run migrations to create tables:
 
@@ -72,6 +75,8 @@ docker compose exec backend npx prisma migrate dev --name <describe-change>
 
 This creates a migration file, applies it to the db, and regenerates the Prisma Client into `backend/src/generated/prisma`.
 
+Note: `backend/src/generated/prisma` is gitignored and lives inside the bind-mounted source tree, so the container's `CMD` runs `npx prisma generate` on every start (see `backend/Dockerfile`) — otherwise a fresh clone on a new machine would mount an empty `src/generated/prisma` over the one baked into the image at build time, and Prisma Client would be missing.
+
 If you only changed the schema output/generator config (no model changes), regenerate client without a migration:
 
 ```bash
@@ -116,8 +121,12 @@ import { prisma } from "../utils/prisma.js";
 
 export const listUsers = () => prisma.dimUser.findMany();
 
-export const createUser = (email: string, username: string, firstName: string, lastName: string) =>
-  prisma.dimUser.create({ data: { email, username, firstName, lastName } });
+export const createUser = (
+  email: string,
+  username: string,
+  firstName: string,
+  lastName: string,
+) => prisma.dimUser.create({ data: { email, username, firstName, lastName } });
 ```
 
 Call the service from a controller (`backend/src/controllers/`):
@@ -177,6 +186,6 @@ When running via `docker compose`, the `DATABASE_URL`/`PORT` set in `docker-comp
 
 ## Troubleshooting
 
-- Port already in use: another process holds 5173/4000/5432 — stop it or change the port mapping in `docker-compose.yml`.
-- Prisma client not found errors: run `docker compose exec backend npx prisma generate`.
+- Port already in use: another process holds 5175/5176/4000/5432 — stop it or change the port mapping in `docker-compose.yml`.
+- Prisma client not found errors: regenerates automatically on container start; if still missing, run `docker compose exec backend npx prisma generate`.
 - Reset db completely: `docker compose down -v` (deletes postgres volume), then `docker compose up -d --build` and re-run migrations.

@@ -13,11 +13,11 @@ export function LandingPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-8.5rem)] items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-xl items-center gap-8 border-border/70 px-10 py-14 text-center shadow-xl shadow-primary/5">
+      <Card className="clay w-full max-w-xl items-center gap-8 border-none px-10 py-14 text-center">
         <ClayBadge />
 
         <div className="space-y-3">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Juan-Claimed</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Juan-Claimed</h1>
           <p className="text-balance text-sm leading-relaxed text-muted-foreground sm:text-base">
             A no-code benefits finder for Filipino citizens. Answer a few quick questions and we'll match you with
             government benefits and programs you may already qualify for — no paperwork hunting required.
