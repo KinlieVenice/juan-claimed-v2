@@ -18,6 +18,8 @@ export { HierarchySelectField, type HierarchyNode };
 
 interface TextFieldProps extends Omit<React.ComponentProps<"input">, "onChange" | "value"> {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   value: string;
   onChange: (value: string) => void;
   error?: string;
@@ -44,6 +46,7 @@ const ALWAYS_FLOATED_TYPES = new Set(["date", "time", "datetime-local", "month",
 
 export function TextField({
   label,
+  sublabel,
   value,
   onChange,
   error,
@@ -62,6 +65,7 @@ export function TextField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       htmlFor={id}
       hasValue={alwaysFloated || (value !== undefined && value !== null && value !== "")}
       required={required}
@@ -89,6 +93,8 @@ export function TextField({
 
 interface TextareaFieldProps extends Omit<React.ComponentProps<"textarea">, "onChange" | "value"> {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   value: string;
   onChange: (value: string) => void;
   error?: string;
@@ -100,6 +106,7 @@ interface TextareaFieldProps extends Omit<React.ComponentProps<"textarea">, "onC
 // Same shell as TextField, wired to a multi-line Textarea.
 export function TextareaField({
   label,
+  sublabel,
   value,
   onChange,
   error,
@@ -116,6 +123,7 @@ export function TextareaField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       htmlFor={id}
       hasValue={value !== undefined && value !== null && value !== ""}
       required={required}
@@ -141,6 +149,8 @@ export function TextareaField({
 
 interface SelectFieldProps {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   value: string | undefined;
   onChange: (value: string) => void;
   options: SelectFieldOption[];
@@ -160,6 +170,7 @@ interface SelectFieldProps {
 // so the label/border respond correctly.
 export function SelectField({
   label,
+  sublabel,
   value,
   onChange,
   options,
@@ -176,6 +187,7 @@ export function SelectField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       htmlFor={id}
       hasValue={!!value}
       active={open}
@@ -193,6 +205,8 @@ export function SelectField({
 
 interface MultiSelectFieldProps {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   value: string[];
   onChange: (value: string[]) => void;
   options: SelectFieldOption[];
@@ -209,6 +223,7 @@ interface MultiSelectFieldProps {
 // SelectField above. `active` tracks the Popover's real open state, same reason as SelectField.
 export function MultiSelectField({
   label,
+  sublabel,
   value,
   onChange,
   options,
@@ -224,6 +239,7 @@ export function MultiSelectField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       hasValue={value.length > 0}
       active={open}
       required={required}
@@ -252,6 +268,8 @@ export const DEFAULT_DURATION_UNITS: SelectFieldOption[] = [
 
 interface DurationFieldProps {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   value: DurationValue | undefined;
   onChange: (value: DurationValue) => void;
   units?: SelectFieldOption[];
@@ -268,6 +286,7 @@ interface DurationFieldProps {
 // (Math.max(0, ...)), since a negative duration isn't a valid state to let through.
 export function DurationField({
   label,
+  sublabel,
   value,
   onChange,
   units = DEFAULT_DURATION_UNITS,
@@ -283,6 +302,7 @@ export function DurationField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       hasValue={value?.value !== undefined}
       required={required}
       disabled={disabled}

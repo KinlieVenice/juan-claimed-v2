@@ -33,6 +33,7 @@ export function EgovRepeaterPreview({ field, rows }: { field: DimField; rows: Re
   return (
     <FloatingLabelField
       label={field.englishName}
+      sublabel={field.tagalogName}
       hasValue
       disableClickCascade
       badge={

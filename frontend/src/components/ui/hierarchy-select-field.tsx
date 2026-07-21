@@ -69,6 +69,8 @@ export function CascadingSelectRow({
 
 interface HierarchySelectFieldProps {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   /** The leaf node's `value` (not `id`) — matches how the rest of the app stores hierarchy answers. */
   value: string | undefined;
   onChange: (value: string) => void;
@@ -88,6 +90,7 @@ interface HierarchySelectFieldProps {
 // hierarchies). Generic over `nodes` so it isn't tied to any one domain.
 export function HierarchySelectField({
   label,
+  sublabel,
   value,
   onChange,
   nodes,

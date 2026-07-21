@@ -3,6 +3,10 @@ import { cn } from "@/lib/utils";
 
 interface FloatingLabelFieldProps {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. Only shows
+   * once the label itself has floated to the top caption position (see `floated` below);
+   * there's no room for it while the label sits centered as placeholder text. */
+  sublabel?: string;
   htmlFor?: string;
   /** Whether the field currently holds a value — floats the label even when not focused. */
   hasValue: boolean;
@@ -42,6 +46,7 @@ interface FloatingLabelFieldProps {
 // wires it into the DimField-driven public form directly.
 export function FloatingLabelField({
   label,
+  sublabel,
   htmlFor,
   hasValue,
   required,
@@ -97,18 +102,21 @@ export function FloatingLabelField({
           htmlFor={htmlFor}
           className={cn(
             "pointer-events-none absolute left-3 z-10 origin-left text-muted-foreground transition-all duration-150",
-            floated ? "top-1.5 text-[11px] font-medium leading-none" : "top-1/2 -translate-y-1/2 text-sm",
+            floated ? "top-1.5" : "top-1/2 -translate-y-1/2 text-sm",
             focused && !error && "text-primary",
             error && floated && "text-destructive",
           )}
         >
-          {label}
-          {required && <span className="text-destructive"> *</span>}
+          <span className={floated ? "text-[11px] font-medium leading-none" : undefined}>
+            {label}
+            {required && <span className="text-destructive"> *</span>}
+          </span>
+          {floated && sublabel && <span className="mt-0.5 block text-[9px] leading-none text-muted-foreground/70 italic">{sublabel}</span>}
         </label>
 
         {badge && <div className="absolute -top-2.5 right-3 z-10">{badge}</div>}
 
-        <div ref={contentRef} className="min-h-11 px-3 pt-5 pb-1.5">
+        <div ref={contentRef} className={cn("min-h-11 px-3 pb-1.5", floated && sublabel ? "pt-7" : "pt-5")}>
           {children}
         </div>
       </div>

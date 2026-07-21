@@ -120,6 +120,7 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
   return (
     <FloatingLabelField
       label={field.englishName}
+      sublabel={field.tagalogName}
       hasValue
       disableClickCascade
       badge={

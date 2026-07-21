@@ -39,6 +39,8 @@ type PsgcMaxLevel = keyof typeof LEVEL_DEPTH;
 
 interface PsgcPhLocationHierarchyFieldProps {
   label: string;
+  /** Small line under the label, e.g. its Tagalog translation — testing only. */
+  sublabel?: string;
   value: PsgcAddressValue | null;
   onChange: (value: PsgcAddressValue | null) => void;
   required?: boolean;
@@ -94,6 +96,7 @@ function useCancelableEffect(effect: (isCancelled: () => boolean) => void, deps:
 // selects.
 export function PsgcPhLocationHierarchyField({
   label,
+  sublabel,
   value,
   onChange,
   required,
@@ -352,6 +355,7 @@ export function PsgcPhLocationHierarchyField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       // Forced, not !!value — see HierarchySelectField's identical reasoning: a cascading
       // stack always has its first select visibly rendered from the start, so a
       // float-only-once-filled label would sit centered over it the whole time instead.

@@ -80,6 +80,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       return (
         <TextComponent
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={(value as string) ?? ""}
           onChange={onChange}
           required={required}
@@ -96,6 +97,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
         <TextField
           type="number"
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(v) => onChange(v === "" ? null : Number(v))}
           required={required}
@@ -114,6 +116,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
           type="number"
           leading="₱"
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(v) => onChange(v === "" ? null : Number(v))}
           required={required}
@@ -131,6 +134,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
         <TextField
           type="date"
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={(value as string) ?? ""}
           onChange={onChange}
           required={required}
@@ -151,6 +155,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       return (
         <SelectField
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={value as string | undefined}
           onChange={onChange as (v: string) => void}
           options={selectOptions}
@@ -166,6 +171,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       return (
         <MultiSelectField
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={(value as string[]) ?? []}
           onChange={onChange as (v: string[]) => void}
           options={selectOptions}
@@ -197,6 +203,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
         return (
           <PsgcPhLocationHierarchyField
             label={field.englishName}
+            sublabel={field.tagalogName}
             value={psgcValue}
             onChange={(v: PsgcAddressValue | null) => onChange(v?.barangayCode ?? null)}
             required={required}
@@ -217,6 +224,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       return (
         <HierarchySelectField
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={value as string | undefined}
           onChange={onChange as (v: string) => void}
           nodes={nodes}
@@ -233,6 +241,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       return (
         <DurationField
           label={field.englishName}
+          sublabel={field.tagalogName}
           value={value as DurationValue | undefined}
           onChange={onChange as (v: DurationValue) => void}
           required={required}
@@ -270,6 +279,7 @@ function BooleanInput({
         <label className="text-sm font-medium text-foreground">
           {field.englishName}
           {field.required && <span className="text-destructive"> *</span>}
+          {field.tagalogName && <span className="ml-1 text-[9px] font-normal italic text-muted-foreground/70">{field.tagalogName}</span>}
         </label>
         {badge}
       </div>
