@@ -42,13 +42,11 @@ export function ResetPasswordPage() {
   return (
     <AuthLayout>
       <div className="space-y-2 text-center lg:text-left">
-        <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary lg:mx-0">
+        <div className="clay-yellow mx-auto flex size-11 items-center justify-center text-[color:var(--color-ph-blue)] lg:mx-0">
           <KeyRound className="size-5" />
         </div>
-        <h2 className="text-xl font-bold text-foreground">Set a New Password</h2>
-        <p className="text-sm text-muted-foreground">
-          Your password was reset by a Superadmin. Set a new one to continue.
-        </p>
+        <h2 className="font-display text-2xl font-black text-slate-900">Set a New Password</h2>
+        <p className="text-sm text-slate-600">Your password was reset by a Superadmin. Set a new one to continue.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-7">

@@ -2,26 +2,10 @@ import { OAuth2Client } from "google-auth-library";
 import { prisma } from "../utils/prisma.js";
 import { comparePassword, hashPassword, omitPassHash } from "../utils/password.js";
 import { signAuthToken } from "../utils/jwt.util.js";
+import { mintAccessToken, fetchProfile } from "./egovApi.service.js";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID as string;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
-
-const EGOV_PARTNER_CODE = process.env.EGOV_PARTNER_CODE as string;
-const EGOV_PARTNER_SECRET = process.env.EGOV_PARTNER_SECRET as string;
-const EGOV_TOKEN_URL = "https://oauth.e.gov.ph/api/token";
-const EGOV_PROFILE_URL = "https://oauth.e.gov.ph/api/partner/sso_authentication";
-
-// Shape of the "data" object in eGov App SSO API v2's sso_authentication response —
-// only the fields this service actually reads are declared; the real payload carries
-// more (address components, PSGC codes, passport{}) that a later "sync default fields
-// from eGov" pass can read once that work is scoped.
-interface EgovProfile {
-  uniqid: string;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-  photo?: string;
-}
 
 export const loginWithPassword = async (username: string, password: string) => {
   const user = await prisma.dimUser.findFirst({
@@ -102,46 +86,6 @@ export const loginWithGoogle = async (idToken: string) => {
   return { token: signAuthToken(user.id), user: omitPassHash(user) };
 };
 
-// eGov App SSO API v2 — https://e.gov.ph/developers#api-tabs. exchangeCode is issued by
-// the eGov app itself (no registered redirect/callback URL yet, so the frontend currently
-// collects it via a dev-mode paste-in rather than a real redirect flow — swapping that
-// later doesn't change anything here). Two server-to-server calls, in order:
-//   1. exchange it (+ partner_code/partner_secret) for a one-time access_token
-//   2. use that access_token to fetch the applicant's eGov profile
-const exchangeEgovCodeForAccessToken = async (exchangeCode: string): Promise<string> => {
-  const form = new FormData();
-  form.set("partner_code", EGOV_PARTNER_CODE);
-  form.set("partner_secret", EGOV_PARTNER_SECRET);
-  form.set("scope", "SSO_AUTHENTICATION");
-  form.set("exchange_code", exchangeCode);
-
-  const response = await fetch(EGOV_TOKEN_URL, { method: "POST", body: form });
-  const body = await response.json().catch(() => null);
-
-  if (!response.ok || !body?.access_token) {
-    console.error("[AuthService] eGov token exchange failed:", response.status, body);
-    throw new Error("INVALID_CREDENTIALS: Could not verify eGovPH account.");
-  }
-
-  return body.access_token as string;
-};
-
-const fetchEgovProfile = async (accessToken: string): Promise<EgovProfile> => {
-  const response = await fetch(EGOV_PROFILE_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  const body = await response.json().catch(() => null);
-  const profile = body?.data as EgovProfile | undefined;
-
-  if (!response.ok || !profile?.uniqid || !profile.email) {
-    console.error("[AuthService] eGov profile fetch failed:", response.status, body);
-    throw new Error("INVALID_CREDENTIALS: Could not verify eGovPH account.");
-  }
-
-  return profile;
-};
-
 export const changeUserPassword = async (userId: string, currentPassword: string, newPassword: string) => {
   const user = await prisma.dimUser.findFirst({ where: { id: userId, deletedAt: null } });
 
@@ -164,9 +108,19 @@ export const changeUserPassword = async (userId: string, currentPassword: string
   return omitPassHash(updatedUser);
 };
 
+// eGov App SSO API v2 — https://e.gov.ph/developers#api-tabs. exchangeCode is issued by
+// the eGov app itself (no registered redirect/callback URL yet, so the frontend currently
+// collects it via a dev-mode paste-in rather than a real redirect flow — swapping that
+// later doesn't change anything here). The actual HTTP calls live in egovApi.service.ts;
+// this just translates its failures into the app's INVALID_CREDENTIALS error convention.
 export const loginWithEgov = async (exchangeCode: string) => {
-  const accessToken = await exchangeEgovCodeForAccessToken(exchangeCode);
-  const profile = await fetchEgovProfile(accessToken);
+  let profile: Awaited<ReturnType<typeof fetchProfile>>;
+  try {
+    const accessToken = await mintAccessToken(exchangeCode);
+    profile = await fetchProfile(accessToken);
+  } catch (error) {
+    throw new Error("INVALID_CREDENTIALS: Could not verify eGovPH account.");
+  }
 
   let user = await prisma.dimUser.findFirst({
     where: { egovId: profile.uniqid, deletedAt: null },
@@ -196,5 +150,8 @@ export const loginWithEgov = async (exchangeCode: string) => {
     throw new Error("FORBIDDEN: This account has been deactivated.");
   }
 
-  return { token: signAuthToken(user.id), user: omitPassHash(user) };
+  // The raw eGov profile carries a lot more than DimUser has columns for (address, PSGC
+  // codes, birth_date, signature, ...). Not persisted anywhere yet — handed back as-is so
+  // the frontend can hold onto it (session state) until how to use it is decided.
+  return { token: signAuthToken(user.id), user: omitPassHash(user), egovProfile: profile };
 };

@@ -49,7 +49,7 @@ export function CascadingSelectRow({
   showLevelLabels?: boolean;
 }) {
   return (
-    <div className={cn("flex flex-col gap-3", containerClassName)}>
+    <div className={cn("flex flex-col gap-3 mt-3", containerClassName)}>
       {columns.map((col, depth) => (
         <div key={depth} className="flex flex-col gap-1.5" style={nested ? { marginLeft: depth * 16 } : undefined}>
           {showLevelLabels && col.placeholder && <span className="text-xs font-medium text-muted-foreground">{col.placeholder}</span>}

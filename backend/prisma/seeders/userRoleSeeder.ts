@@ -34,29 +34,47 @@ export async function seedUsersAndRoles() {
 
   console.log("Seeding System Groups...");
 
-  let dohGroup = await prisma.dimGroup.findFirst({
-    where: { englishName: "Department of Health" },
+  // Idempotent find-or-create by englishName — DimGroup has no unique key to upsert
+  // against (unlike DimScope.value) since it's admin-editable content via the Groups
+  // page, not a fixed system enum, so a hard DB-level unique constraint would be wrong
+  // here; this is just enough to keep re-running the seed from duplicating these two
+  // fixed rows.
+  async function findOrCreateGroup(data: {
+    englishName: string;
+    tagalogName: string;
+    englishDescription: string;
+    tagalogDescription: string;
+  }) {
+    const existing = await prisma.dimGroup.findFirst({ where: { englishName: data.englishName, deletedAt: null } });
+    return existing ?? (await prisma.dimGroup.create({ data }));
+  }
+
+  const dohGroup = await findOrCreateGroup({
+    englishName: "Department of Health",
+    tagalogName: "Kagawaran ng Kalusugan",
+    englishDescription: "National government agency for health",
+    tagalogDescription: "Pambansang ahensya ng pamahalaan para sa kalusugan",
   });
 
-  if (!dohGroup) {
-    dohGroup = await prisma.dimGroup.create({
-      data: {
-        englishName: "Department of Health",
-        tagalogName: "Kagawaran ng Kalusugan",
-        englishDescription: "National government agency for health",
-        tagalogDescription:
-          "Pambansang ahensya ng pamahalaan para sa kalusugan",
-      },
-    });
-  }
+  // The Superadmin's own "owner/credit" group — validateRoleConfig requires every
+  // SUPERADMIN to carry a non-null groupId (backend/src/services/userAccess.service.ts),
+  // same as any other user with that role, so it needs a real seeded group too instead of
+  // null (which used to violate the app's own matrix rule the moment anyone tried to
+  // re-save that account's role through the UI).
+  const egovGroup = await findOrCreateGroup({
+    englishName: "eGovPH",
+    tagalogName: "eGovPH",
+    englishDescription: "The national e-government platform — owns/credits the system Superadmin account.",
+    tagalogDescription: "Ang pambansang e-government platform — may-ari/kredito ng system Superadmin account.",
+  });
   console.log("Groups synchronized.");
 
   console.log("Seeding Users according to role constraints...");
 
-  // A. Superadmin Account (Scope: Superadmin, Group: NULL, PsgcCode: Superadmin)
+  // A. Superadmin Account (Scope: Superadmin, Group: eGovPH, PsgcCode: Superadmin)
   await prisma.dimUser.upsert({
     where: { email: "superadmin@juanclaimed.com" },
-    update: { groupId: null, passHash: devPassHash },
+    update: { groupId: egovGroup.id, passHash: devPassHash },
     create: {
       username: "superadmin_main",
       email: "superadmin@juanclaimed.com",
@@ -64,7 +82,7 @@ export async function seedUsersAndRoles() {
       lastName: "Administrator",
       role: UserRole.SUPERADMIN,
       scopeId: createdScopes["SUPERADMIN"],
-      groupId: null,
+      groupId: egovGroup.id,
       psgcCode: "SUPERADMIN",
       passHash: devPassHash,
     },

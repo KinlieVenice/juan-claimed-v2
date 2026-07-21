@@ -15,7 +15,7 @@ const MAX_VALUE_LENGTH = 255;
 // needs a DB lookup at all.
 const PH_LOCATION_HIERARCHY_KEY = "PH_LOCATION";
 
-type AnswerableField = {
+export type AnswerableField = {
   id: string;
   parentFieldId: string | null;
   fieldHierarchyId: string | null;
@@ -50,7 +50,14 @@ const isDurationShape = (value: unknown): value is { value: number; unit: string
 // duration bounds, selection counts — see assertAnswerMatchesFieldConfig), and stringifies
 // it into the VarChar(255). Throws INVALID_ANSWER_VALUE / ANSWER_VIOLATES_FIELD_CONFIG on
 // any mismatch — same "reject, don't coerce" stance condition.util.ts's compare() takes.
-const encodeFieldValue = async (db: DbClient, field: AnswerableField, rawValue: unknown): Promise<string> => {
+const encodeFieldValue = async (db: DbClient, field: AnswerableField, rawValue: unknown): Promise<string | null> => {
+  // A field the applicant was presented with but left blank (always legal for a
+  // non-required field, and the frontend never blocks submission on this) — persisted as a
+  // real null-valued row rather than rejected, so the system can tell "asked and skipped"
+  // apart from "never asked at all" (see resolveAnswersMapWith / evaluateLeafNode's
+  // hasOwnProperty check, which relies on this row existing).
+  if (rawValue === null || rawValue === undefined) return null;
+
   const configJson = (field.configJson ?? null) as Record<string, unknown> | null;
   const inputType = field.fieldInputType.value;
 
@@ -143,7 +150,7 @@ const resolveHierarchyAncestorPath = async (db: DbClient, field: AnswerableField
 // HIERARCHY_SELECT operator (BELONGS_TO/EQUALS/NOT_EQUALS/IN/IS_EMPTY/IS_NOT_EMPTY) in
 // condition.util.ts's evaluateHierarchySelect expects the ancestor-path array, not the
 // plain node value — see the design note in docs/condition-value-shapes.md.
-const decodeFieldValue = async (
+export const decodeFieldValue = async (
   db: DbClient,
   field: AnswerableField,
   storedValue: string | null,
@@ -313,7 +320,19 @@ const assertRepeaterFieldWith = async (db: DbClient, fieldId: string) => {
 // (e.g. adding another dependent).
 export const createAnswerGroup = async (userId: string, repeaterFieldId: string) => {
   return await prisma.$transaction(async (tx) => {
-    await assertRepeaterFieldWith(tx, repeaterFieldId);
+    const field = await assertRepeaterFieldWith(tx, repeaterFieldId);
+
+    // configJson.maxRows (see fieldConfig.request.ts's repeaterGroupConfigSchema) — the
+    // real enforcement point; the frontend's Add Row button disabling is just UX, this is
+    // what actually stops it (a stale button state or a direct API call shouldn't bypass it).
+    const maxRows = (field.configJson as Record<string, unknown> | null)?.maxRows;
+    if (typeof maxRows === "number") {
+      const existingCount = await tx.fctUserFieldAnswerGroup.count({ where: { userId, fieldId: repeaterFieldId } });
+      if (existingCount >= maxRows) {
+        console.error(`[FieldAnswerService] Field "${repeaterFieldId}" already has ${existingCount} row(s), at its configured max of ${maxRows}.`);
+        throw new Error(`INVALID_INPUT: This field allows at most ${maxRows} row${maxRows === 1 ? "" : "s"}.`);
+      }
+    }
 
     const lastGroup = await tx.fctUserFieldAnswerGroup.findFirst({
       where: { userId, fieldId: repeaterFieldId },

@@ -1,18 +1,11 @@
 import { Outlet } from "react-router-dom";
-import { TopHeader } from "@/components/layout/TopHeader";
 
+// Every route under here (LandingPage, FormPage, EligibleBenefitsPage, AnswerMorePage,
+// BenefitDetailsPage, ProfilePage) renders its own full clay page shell — ApplyChrome
+// header + ApplyFooter — via components/apply/*, so this layout stays a bare Outlet.
+// It used to also render the old admin-style TopHeader/footer here, which stacked a
+// second, differently-styled header/footer above/below each page's own; that's the "double
+// header" that was showing.
 export function PublicLayout() {
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <TopHeader />
-      <main className="flex-1">
-        <Outlet />
-      </main>
-      <footer className="border-t border-border/70 py-6">
-        <p className="mx-auto max-w-6xl px-6 text-center text-xs text-muted-foreground">
-          Juan-Claimed — a no-code benefits finder. Integrated with eGovPH (view-only).
-        </p>
-      </footer>
-    </div>
-  );
+  return <Outlet />;
 }

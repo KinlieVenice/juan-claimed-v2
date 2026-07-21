@@ -21,6 +21,18 @@ export const listBenefits = async (req: Request, res: Response) => {
   }
 };
 
+// No-auth counterpart for the "public/no account" flow — same catalog data any signed-in
+// USER already sees (listBenefitsService isn't scoped by user at all), just without the
+// req.user gate above.
+export const listPublicBenefits = async (_req: Request, res: Response) => {
+  try {
+    const benefits = await listBenefitsService();
+    return sendSuccess(res, 200, "Benefits loaded successfully.", benefits);
+  } catch (error: any) {
+    handleApiError(error, res);
+  }
+};
+
 export const getBenefitById = async (
   req: Request<{ id: string }>,
   res: Response,
@@ -36,6 +48,16 @@ export const getBenefitById = async (
       "Benefit details loaded successfully.",
       benefit,
     );
+  } catch (error: any) {
+    handleApiError(error, res);
+  }
+};
+
+// No-auth counterpart for the "public/no account" flow's single-benefit page.
+export const getPublicBenefitById = async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const benefit = await getBenefitByIdService(req.params.id);
+    return sendSuccess(res, 200, "Benefit details loaded successfully.", benefit);
   } catch (error: any) {
     handleApiError(error, res);
   }

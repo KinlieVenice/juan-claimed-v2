@@ -16,6 +16,13 @@ import { PERMISSIONS } from "../constants/permissions.js";
 
 export const fieldRouter = Router();
 
+// No auth — the "public/no account" flow's generic quiz needs to render GLOBAL fields for
+// a visitor with no session at all. Read-only, same field data any signed-in USER already
+// sees; reuses the exact same controller (it never reads req.user). Ahead of "/:id" on
+// purpose, same reasoning as benefit.routes.ts's "/eligibility" — "public" would otherwise
+// be swallowed as an :id value.
+fieldRouter.get("/public", getAllFields);
+
 fieldRouter.get("/", mockAuth, requireRole(PERMISSIONS.VIEW_FIELDS), getAllFields);
 
 // Mounted before "/:id" — PATCH /reorder is a distinct method+path, but kept above the
@@ -34,6 +41,10 @@ fieldRouter.get("/:id", mockAuth, requireRole(PERMISSIONS.VIEW_FIELDS), getField
 fieldRouter.post("/", mockAuth, requireRole(PERMISSIONS.CREATE_FIELDS), validateBody(compositeFieldSchema), requireFieldClassificationRole, createField);
 fieldRouter.put("/:id", mockAuth, requireRole(PERMISSIONS.EDIT_FIELDS), validateBody(compositeFieldSchema), requireFieldEditClassificationRole, updateField);
 fieldRouter.delete("/:id", mockAuth, requireRole(PERMISSIONS.DELETE_FIELDS), deleteField);
+
+// Same no-auth reasoning as "/public" above — a guest's SINGLE_SELECT/MULTI_SELECT global
+// fields need their real options to render at all.
+fieldRouter.get("/public/:fieldId/options", getFieldOptionsByFieldId);
 
 fieldRouter.get("/:fieldId/options", mockAuth, requireRole(PERMISSIONS.VIEW_FIELDS), getFieldOptionsByFieldId);
 fieldRouter.post(

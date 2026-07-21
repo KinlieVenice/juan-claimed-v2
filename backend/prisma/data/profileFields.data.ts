@@ -13,6 +13,11 @@
 export interface ProfileFieldOptionDef {
   englishName: string;
   tagalogName: string;
+  // Overrides the default toSnakeCaseKey(englishName) value. Needed for options sourced
+  // from an eGov additional_information enum we don't have the real backing code for (e.g.
+  // Religion) — the raw string eGov sends back is all we have to match against, so the
+  // option's value has to be that exact string, not a normalized guess at it.
+  value?: string;
 }
 
 export interface ProfileFieldDef {
@@ -26,6 +31,10 @@ export interface ProfileFieldDef {
   configJson: Record<string, unknown> | null;
   notConditional: boolean;
   options?: ProfileFieldOptionDef[];
+  // REPEATER_GROUP only — its row-level children (own DimField rows, parentFieldId set to
+  // the parent). Must not themselves be REPEATER_GROUP (no nesting) — see field.service.ts's
+  // assertNotNestedRepeaterGroup, mirrored by seedProfileFields.
+  children?: ProfileFieldDef[];
 }
 
 export const profileFields: ProfileFieldDef[] = [
@@ -258,6 +267,225 @@ export const profileFields: ProfileFieldDef[] = [
       { englishName: "Indigenous Peoples (IP)", tagalogName: "Mga Katutubo" },
       { englishName: "Cooperatives", tagalogName: "Mga Kasapi ng Kooperatiba" },
       { englishName: "Others", tagalogName: "Iba Pa" },
+    ],
+  },
+  // The rest below aren't in eGov's core sso_authentication payload (uniqid, email, name,
+  // address, ...) — they come from its "additional_information" block instead
+  // (other_personal_information / health_data / educational_attainment / industry /
+  // expected_salary). Option lists intentionally left unset for now — pending real values.
+  {
+    englishName: "Marital Status",
+    tagalogName: "Katayuan Sibil",
+    englishDescription: "User's marital status",
+    tagalogDescription: "Katayuan sibil ng user",
+    inputType: "SINGLE_SELECT",
+    required: false,
+    sortOrder: 18,
+    configJson: null,
+    notConditional: false,
+    // Same drill as Religion's options — value === englishName verbatim, no real tagalog
+    // translation (see ProfileFieldOptionDef's comment).
+    options: [
+      { englishName: "Single", tagalogName: "Single", value: "Single" },
+      { englishName: "Married", tagalogName: "Married", value: "Married" },
+      { englishName: "Widowed", tagalogName: "Widowed", value: "Widowed" },
+      { englishName: "Separated", tagalogName: "Separated", value: "Separated" },
+      { englishName: "Divorced", tagalogName: "Divorced", value: "Divorced" },
+      { englishName: "Annulled", tagalogName: "Annulled", value: "Annulled" },
+    ],
+  },
+  {
+    englishName: "Religion",
+    tagalogName: "Relihiyon",
+    englishDescription: "User's religion",
+    tagalogDescription: "Relihiyon ng user",
+    inputType: "SINGLE_SELECT",
+    required: false,
+    sortOrder: 19,
+    configJson: null,
+    notConditional: false,
+    // value === englishName verbatim (no toSnakeCaseKey normalizing, no separate tagalog
+    // translation) — see ProfileFieldOptionDef's comment. "Others" here is a plain option,
+    // no anchored "Please Specify Religion" follow-up (unlike Occupation's "Others").
+    options: [
+      { englishName: "Roman Catholic", tagalogName: "Roman Catholic", value: "Roman Catholic" },
+      { englishName: "Protestant / Other Christian", tagalogName: "Protestant / Other Christian", value: "Protestant / Other Christian" },
+      { englishName: "Iglesia ni Cristo", tagalogName: "Iglesia ni Cristo", value: "Iglesia ni Cristo" },
+      { englishName: "Islam", tagalogName: "Islam", value: "Islam" },
+      { englishName: "Aglipayan / Philippine Independent Church", tagalogName: "Aglipayan / Philippine Independent Church", value: "Aglipayan / Philippine Independent Church" },
+      { englishName: "Jehovah's Witnesses", tagalogName: "Jehovah's Witnesses", value: "Jehovah's Witnesses" },
+      { englishName: "Seventh-day Adventist", tagalogName: "Seventh-day Adventist", value: "Seventh-day Adventist" },
+      { englishName: "Baptist", tagalogName: "Baptist", value: "Baptist" },
+      { englishName: "Evangelical", tagalogName: "Evangelical", value: "Evangelical" },
+      { englishName: "Orthodox", tagalogName: "Orthodox", value: "Orthodox" },
+      { englishName: "Buddhism", tagalogName: "Buddhism", value: "Buddhism" },
+      { englishName: "Hinduism", tagalogName: "Hinduism", value: "Hinduism" },
+      { englishName: "Judaism", tagalogName: "Judaism", value: "Judaism" },
+      { englishName: "Others", tagalogName: "Others", value: "Others" },
+    ],
+  },
+  {
+    englishName: "Weight",
+    tagalogName: "Timbang",
+    englishDescription: "User's weight in kilograms",
+    tagalogDescription: "Timbang ng user sa kilo",
+    inputType: "NUMBER",
+    required: false,
+    sortOrder: 20,
+    configJson: { allowNegative: false },
+    notConditional: false,
+  },
+  {
+    englishName: "Height",
+    tagalogName: "Taas",
+    englishDescription: "User's height in centimeters",
+    tagalogDescription: "Taas ng user sa sentimetro",
+    inputType: "NUMBER",
+    required: false,
+    sortOrder: 21,
+    configJson: { allowNegative: false },
+    notConditional: false,
+  },
+  {
+    englishName: "Educational Attainment",
+    tagalogName: "Antas ng Edukasyon",
+    englishDescription: "User's educational background, one row per level completed/attended",
+    tagalogDescription: "Antas ng edukasyon ng user, isang hilera kada antas na natapos/dinaluhan",
+    inputType: "REPEATER_GROUP",
+    required: false,
+    sortOrder: 22,
+    // Highest level only — see fieldConfig.request.ts's repeaterGroupConfigSchema for how
+    // this is enforced (fieldAnswer.service.ts's createAnswerGroup), not just a UI cap.
+    configJson: { maxRows: 1 },
+    notConditional: false,
+    children: [
+      {
+        englishName: "Level",
+        tagalogName: "Antas",
+        englishDescription: "Educational level for this entry",
+        tagalogDescription: "Antas ng edukasyon para sa entry na ito",
+        inputType: "SINGLE_SELECT",
+        required: false,
+        sortOrder: 1,
+        configJson: null,
+        notConditional: false,
+        // Same drill as Religion/Marital Status/Salary Range — value === englishName
+        // verbatim, no real tagalog translation (see ProfileFieldOptionDef's comment).
+        options: [
+          { englishName: "Elementary", tagalogName: "Elementary", value: "Elementary" },
+          { englishName: "Junior High", tagalogName: "Junior High", value: "Junior High" },
+          { englishName: "Senior High", tagalogName: "Senior High", value: "Senior High" },
+          { englishName: "Vocational", tagalogName: "Vocational", value: "Vocational" },
+          { englishName: "Associate", tagalogName: "Associate", value: "Associate" },
+          { englishName: "Bachelor", tagalogName: "Bachelor", value: "Bachelor" },
+          { englishName: "Master", tagalogName: "Master", value: "Master" },
+          { englishName: "Doctorate", tagalogName: "Doctorate", value: "Doctorate" },
+        ],
+      },
+      {
+        englishName: "School",
+        tagalogName: "Paaralan",
+        englishDescription: "School attended for this entry",
+        tagalogDescription: "Paaralang dinaluhan para sa entry na ito",
+        inputType: "SINGLE_SELECT",
+        required: false,
+        sortOrder: 2,
+        configJson: null,
+        notConditional: false,
+      },
+      {
+        englishName: "From",
+        tagalogName: "Mula",
+        englishDescription: "Year started, 4 digits (e.g. 2018)",
+        tagalogDescription: "Taon na sinimulan, 4 na numero (hal. 2018)",
+        inputType: "NUMBER",
+        required: false,
+        sortOrder: 3,
+        configJson: { min: 1000, max: 9999, allowDecimals: false, allowNegative: false },
+        notConditional: false,
+      },
+      {
+        englishName: "Educational Background",
+        tagalogName: "Larangan ng Edukasyon",
+        englishDescription: "Field/strand/course for this entry",
+        tagalogDescription: "Larangan/strand/kurso para sa entry na ito",
+        inputType: "SINGLE_SELECT",
+        required: false,
+        sortOrder: 4,
+        configJson: null,
+        notConditional: false,
+      },
+      {
+        englishName: "To",
+        tagalogName: "Hanggang",
+        englishDescription: "Year ended/completed, 4 digits (e.g. 2022)",
+        tagalogDescription: "Taon na natapos, 4 na numero (hal. 2022)",
+        inputType: "NUMBER",
+        required: false,
+        sortOrder: 5,
+        configJson: { min: 1000, max: 9999, allowDecimals: false, allowNegative: false },
+        notConditional: false,
+      },
+    ],
+  },
+  {
+    englishName: "Industry",
+    tagalogName: "Industriya",
+    englishDescription: "Industry the user works in",
+    tagalogDescription: "Industriyang kinabibilangan ng user",
+    inputType: "SINGLE_SELECT",
+    required: false,
+    sortOrder: 23,
+    configJson: null,
+    notConditional: false,
+    // Same drill as Religion/Marital Status/Salary Range/Level — value === englishName
+    // verbatim, no real tagalog translation (see ProfileFieldOptionDef's comment).
+    options: [
+      { englishName: "Agriculture, Forestry And Fishing", tagalogName: "Agriculture, Forestry And Fishing", value: "Agriculture, Forestry And Fishing" },
+      { englishName: "Mining And Quarrying", tagalogName: "Mining And Quarrying", value: "Mining And Quarrying" },
+      { englishName: "Manufacturing", tagalogName: "Manufacturing", value: "Manufacturing" },
+      { englishName: "Electricity, Gas, Steam And Air Conditioning", tagalogName: "Electricity, Gas, Steam And Air Conditioning", value: "Electricity, Gas, Steam And Air Conditioning" },
+      { englishName: "Water Supply; Sewerage, Waste Management", tagalogName: "Water Supply; Sewerage, Waste Management", value: "Water Supply; Sewerage, Waste Management" },
+      { englishName: "Construction", tagalogName: "Construction", value: "Construction" },
+      { englishName: "Wholesale and Retail Trade; Repair of Motor Vehicle", tagalogName: "Wholesale and Retail Trade; Repair of Motor Vehicle", value: "Wholesale and Retail Trade; Repair of Motor Vehicle" },
+      { englishName: "Transportation and Storage", tagalogName: "Transportation and Storage", value: "Transportation and Storage" },
+      { englishName: "Accommodation and Food Service Activities", tagalogName: "Accommodation and Food Service Activities", value: "Accommodation and Food Service Activities" },
+      { englishName: "Information and Communication", tagalogName: "Information and Communication", value: "Information and Communication" },
+      { englishName: "Financial and Insurance Activities", tagalogName: "Financial and Insurance Activities", value: "Financial and Insurance Activities" },
+      { englishName: "Real Estate Activities", tagalogName: "Real Estate Activities", value: "Real Estate Activities" },
+      { englishName: "Professional, Scientific and Technical Activities", tagalogName: "Professional, Scientific and Technical Activities", value: "Professional, Scientific and Technical Activities" },
+      { englishName: "Administrative and Support Service Activities", tagalogName: "Administrative and Support Service Activities", value: "Administrative and Support Service Activities" },
+      { englishName: "Public Administration and Defense", tagalogName: "Public Administration and Defense", value: "Public Administration and Defense" },
+      { englishName: "Education", tagalogName: "Education", value: "Education" },
+      { englishName: "Human Health and Social Work Activities", tagalogName: "Human Health and Social Work Activities", value: "Human Health and Social Work Activities" },
+      { englishName: "Arts, Entertainment and Recreation", tagalogName: "Arts, Entertainment and Recreation", value: "Arts, Entertainment and Recreation" },
+      { englishName: "Other Service Activities", tagalogName: "Other Service Activities", value: "Other Service Activities" },
+      { englishName: "Activities of Households as Employers", tagalogName: "Activities of Households as Employers", value: "Activities of Households as Employers" },
+      { englishName: "Activities of Extra-Territorial Organizations", tagalogName: "Activities of Extra-Territorial Organizations", value: "Activities of Extra-Territorial Organizations" },
+    ],
+  },
+  {
+    englishName: "Salary Range",
+    tagalogName: "Saklaw ng Sahod",
+    englishDescription: "User's expected/current salary range",
+    tagalogDescription: "Saklaw ng inaasahan/kasalukuyang sahod ng user",
+    inputType: "SINGLE_SELECT",
+    required: false,
+    sortOrder: 24,
+    configJson: null,
+    notConditional: false,
+    // Same drill as Religion/Marital Status — value === englishName verbatim, no real
+    // tagalog translation (see ProfileFieldOptionDef's comment).
+    options: [
+      { englishName: "Below 15,000", tagalogName: "Below 15,000", value: "Below 15,000" },
+      { englishName: "15,000–25,000", tagalogName: "15,000–25,000", value: "15,000–25,000" },
+      { englishName: "25,001–40,000", tagalogName: "25,001–40,000", value: "25,001–40,000" },
+      { englishName: "40,001–60,000", tagalogName: "40,001–60,000", value: "40,001–60,000" },
+      { englishName: "60,001–90,000", tagalogName: "60,001–90,000", value: "60,001–90,000" },
+      { englishName: "90,001–130,000", tagalogName: "90,001–130,000", value: "90,001–130,000" },
+      { englishName: "130,001–180,000", tagalogName: "130,001–180,000", value: "130,001–180,000" },
+      { englishName: "180,001–250,000", tagalogName: "180,001–250,000", value: "180,001–250,000" },
+      { englishName: "Above 250,000", tagalogName: "Above 250,000", value: "Above 250,000" },
     ],
   },
 ];

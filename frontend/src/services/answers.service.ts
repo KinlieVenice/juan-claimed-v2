@@ -1,12 +1,9 @@
-// Mirrors GET/PUT /api/field-answers, POST /api/field-answers/groups,
-// GET /api/field-answers/groups/:fieldId (backend/docs/api-docs.md).
-import { delay } from "@/lib/delay";
-import {
-  readAnswers,
-  readAnswerGroups,
-  writeAnswer,
-  createAnswerGroupRecord,
-} from "@/mock/answers.mock";
+// Real — wraps GET/PUT /api/field-answers, POST /api/field-answers/groups,
+// GET /api/field-answers/groups/:fieldId (backend/routes.md). Was mock-backed
+// (@/mock/answers.mock, no fetch at all) — nothing submitted through the UI ever reached
+// the real backend, so eligibility could never actually update from real answers; this is
+// the fix for that gap.
+import { apiFetch } from "@/lib/api";
 import type { UserFieldAnswer, UserFieldAnswerGroup } from "@/types/domain";
 
 export interface SubmitFieldAnswerInput {
@@ -15,27 +12,26 @@ export interface SubmitFieldAnswerInput {
   repeaterGroupId?: string | null;
 }
 
-export async function getMyFieldAnswers(): Promise<UserFieldAnswer[]> {
-  await delay();
-  return readAnswers();
+export async function getMyFieldAnswers(token?: string): Promise<UserFieldAnswer[]> {
+  return apiFetch<UserFieldAnswer[]>("/api/field-answers", { token });
 }
 
-export async function submitFieldAnswers(items: SubmitFieldAnswerInput[]): Promise<UserFieldAnswer[]> {
-  await delay(400);
-  for (const item of items) {
-    writeAnswer(item.fieldId, item.value, item.repeaterGroupId ?? null);
-  }
-  return readAnswers();
+export async function submitFieldAnswers(items: SubmitFieldAnswerInput[], token?: string): Promise<UserFieldAnswer[]> {
+  return apiFetch<UserFieldAnswer[]>("/api/field-answers", {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ answers: items }),
+  });
 }
 
-export async function createAnswerGroup(fieldId: string): Promise<UserFieldAnswerGroup> {
-  await delay(200);
-  return createAnswerGroupRecord(fieldId);
+export async function createAnswerGroup(fieldId: string, token?: string): Promise<UserFieldAnswerGroup> {
+  return apiFetch<UserFieldAnswerGroup>("/api/field-answers/groups", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ fieldId }),
+  });
 }
 
-export async function getMyAnswerGroups(fieldId: string): Promise<UserFieldAnswerGroup[]> {
-  await delay();
-  return readAnswerGroups()
-    .filter((g) => g.fieldId === fieldId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+export async function getMyAnswerGroups(fieldId: string, token?: string): Promise<UserFieldAnswerGroup[]> {
+  return apiFetch<UserFieldAnswerGroup[]>(`/api/field-answers/groups/${fieldId}`, { token });
 }

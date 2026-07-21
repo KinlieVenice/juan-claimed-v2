@@ -75,7 +75,15 @@ const multiSelectConfigSchema = z
   })
   .strict();
 
-// BOOLEAN, SINGLE_SELECT, HIERARCHY_SELECT, REPEATER_GROUP: nothing to configure today.
+const repeaterGroupConfigSchema = z
+  .object({
+    /** Caps how many rows a user can add via POST /field-answers/groups — enforced in
+     * fieldAnswer.service.ts's createAnswerGroup, not just the frontend's Add Row button. */
+    maxRows: z.number().int().positive().optional(),
+  })
+  .strict();
+
+// BOOLEAN, SINGLE_SELECT, HIERARCHY_SELECT: nothing to configure today.
 const emptyConfigSchema = z.object({}).strict();
 
 export const CONFIG_SCHEMAS_BY_INPUT_TYPE: Record<string, z.ZodTypeAny> = {
@@ -88,5 +96,5 @@ export const CONFIG_SCHEMAS_BY_INPUT_TYPE: Record<string, z.ZodTypeAny> = {
   BOOLEAN: emptyConfigSchema,
   SINGLE_SELECT: emptyConfigSchema,
   HIERARCHY_SELECT: emptyConfigSchema,
-  REPEATER_GROUP: emptyConfigSchema,
+  REPEATER_GROUP: repeaterGroupConfigSchema,
 };

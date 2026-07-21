@@ -6,6 +6,7 @@ import { seedFieldConfiguration } from './seeders/fieldConfigSeeder';
 import { seedUsersAndRoles } from "./seeders/userRoleSeeder.js";
 import { seedProfileFields } from "./seeders/profileFieldSeeder.js";
 import { seedCountries } from "./seeders/countriesSeeder.js";
+import { seedSchools } from "./seeders/schoolsSeeder.js";
 import { seedPhLocationHierarchy } from "./seeders/phLocationHierarchySeeder.js";
 import { seedOccupationOthers } from "./seeders/occupationOthersSeeder.js";
 
@@ -24,6 +25,8 @@ async function main() {
   await seedOccupationOthers();
 
   await seedCountries();
+
+  await seedSchools();
 
   // Future seed blocks can be safely added here:
   // await seedDefaultSettings(prisma);

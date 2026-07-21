@@ -4,6 +4,7 @@
 // form, instead of only ever being checked server-side at submit time. Kept in sync by
 // hand with the backend version; if you change one, change the other.
 import dayjs from "@/lib/dayjs";
+import { flattenAnchorOrder } from "@/lib/field-anchoring";
 import type { DimField, FieldRuleTreeNode, FieldRuleTreeRoot } from "@/types/domain";
 
 export interface CompareInput {
@@ -549,4 +550,14 @@ export function isFieldVisible(field: DimField, answers: Record<string, unknown>
   const tree = field.dynamicCondition as FieldRuleTreeRoot | null;
   if (!tree) return true;
   return evaluateNode(tree, field.id, answers);
+}
+
+// The exact set of fields a FieldForm render pass actually shows for `values` — same
+// anchor-ordering + visibility filter FieldForm.tsx itself applies. Pages that submit a
+// bulk answers array (FormPage, AnswerMorePage) need this too, not just FieldForm's own
+// JSX: a field hidden by dynamicCondition was never actually presented to the applicant,
+// so it must never get a saved answer row (not even a null one) — only what was genuinely
+// rendered counts as "answered or explicitly skipped."
+export function renderableFields(fields: DimField[], values: Record<string, unknown>): DimField[] {
+  return flattenAnchorOrder(fields).filter((field) => isFieldVisible(field, values));
 }

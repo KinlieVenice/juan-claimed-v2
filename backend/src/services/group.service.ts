@@ -2,11 +2,11 @@ import { prisma } from "../utils/prisma.js";
 import type { CreateUpdateGroupDto } from "../requests/group.request.js";
 
 export const fetchAllGroups = async () => {
-  return await prisma.dimGroup.findMany();
+  return await prisma.dimGroup.findMany({ where: { deletedAt: null } });
 };
 
 export const fetchGroupById = async (id: string) => {
-  const group = await prisma.dimGroup.findUnique({ where: { id } });
+  const group = await prisma.dimGroup.findUnique({ where: { id, deletedAt: null } });
 
   if (!group) {
     throw new Error("GROUP_NOT_FOUND");

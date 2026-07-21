@@ -7,6 +7,11 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localho
 // avoids a circular import (auth.tsx -> auth.service.ts -> this file).
 export const TOKEN_KEY = "jc.auth-token";
 
+// Where AuthProvider stashes the raw eGov SSO profile after loginWithEgov. Not backed by
+// anything on the server (the backend doesn't persist it either — see auth.service.ts's
+// loginWithEgov comment), so it has to survive a page refresh on its own.
+export const EGOV_PROFILE_KEY = "jc.egov-profile";
+
 const readStoredToken = (): string | undefined => (typeof window === "undefined" ? undefined : (window.localStorage.getItem(TOKEN_KEY) ?? undefined));
 
 export interface ApiEnvelope<T> {

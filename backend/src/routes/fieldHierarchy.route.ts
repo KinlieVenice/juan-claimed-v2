@@ -22,6 +22,10 @@ import { PERMISSIONS } from "../constants/permissions.js";
 
 export const fieldHierarchyRouter = Router();
 
+// No auth — same "public/no account" flow reasoning as field.route.ts's "/public". Ahead
+// of "/:id" on purpose so "public" isn't swallowed as an :id value.
+fieldHierarchyRouter.get("/public", getAllHierarchies);
+
 fieldHierarchyRouter.get("/", mockAuth, requireRole(PERMISSIONS.VIEW_FIELDS), getAllHierarchies);
 fieldHierarchyRouter.get("/:id", mockAuth, requireRole(PERMISSIONS.VIEW_FIELDS), getHierarchyById);
 fieldHierarchyRouter.post("/", mockAuth, requireRole(PERMISSIONS.MANAGE_FIELD_HIERARCHIES), validateBody(createHierarchySchema), createHierarchy);

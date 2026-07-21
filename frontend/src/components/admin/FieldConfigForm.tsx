@@ -179,6 +179,18 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
     );
   }
 
+  if (inputTypeValue === "REPEATER_GROUP") {
+    return (
+      <TextField
+        label="Max rows"
+        type="number"
+        value={value.maxRows === undefined ? "" : String(value.maxRows)}
+        onChange={(v) => set({ maxRows: v === "" ? undefined : Number(v) })}
+        hint="Leave blank for unlimited. Enforced server-side, not just a frontend hint."
+      />
+    );
+  }
+
   return <p className="text-sm text-muted-foreground">No additional configuration for this field type.</p>;
 }
 

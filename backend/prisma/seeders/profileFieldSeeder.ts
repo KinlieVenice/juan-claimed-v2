@@ -6,7 +6,7 @@
 
 import { prisma, Prisma } from "../../src/utils/prisma.js";
 import { generateUniqueCode, toSnakeCaseKey } from "../../src/utils/slug.util.js";
-import { profileFields } from "../data/profileFields.data.js";
+import { profileFields, type ProfileFieldDef } from "../data/profileFields.data.js";
 
 export async function seedProfileFields() {
   console.log("Truncating DimField and all FK-dependent tables (options, user answers, dynamic conditions, benefit eligibility leaves)...");
@@ -19,8 +19,7 @@ export async function seedProfileFields() {
   const inputTypes = await prisma.dimFieldInputType.findMany();
   const inputTypeMap = Object.fromEntries(inputTypes.map((t) => [t.value, t.id]));
 
-  let created = 0;
-  for (const def of profileFields) {
+  const createField = async (def: ProfileFieldDef, parentFieldId: string | null) => {
     const fieldInputTypeId = inputTypeMap[def.inputType];
     if (!fieldInputTypeId) {
       throw new Error(`Unknown inputType "${def.inputType}" for field "${def.englishName}" — is it seeded in DimFieldInputType?`);
@@ -29,6 +28,7 @@ export async function seedProfileFields() {
     const field = await prisma.dimField.create({
       data: {
         key: generateUniqueCode(def.englishName),
+        parentFieldId,
         englishName: def.englishName,
         tagalogName: def.tagalogName,
         englishDescription: def.englishDescription,
@@ -37,7 +37,10 @@ export async function seedProfileFields() {
         default: true,
         // Every profile field is a system-shipped default — but "Occupation" isn't
         // actually eGovPH-sourced, we authored its option list ourselves, so it's the one
-        // exception left editable/unlocked in the admin UI (see DimField.eGovField).
+        // exception left editable/unlocked for logged-in users (see DimField.eGovField /
+        // FieldInput.tsx's disabled check). Everything else here — including the
+        // additional_information-block fields (Marital Status, Educational Attainment,
+        // ...) — really is synced from eGov, so it stays locked like the rest.
         eGovField: def.englishName !== "Occupation",
         required: def.required,
         notConditional: def.notConditional,
@@ -46,15 +49,15 @@ export async function seedProfileFields() {
         fieldInputTypeId,
       },
     });
-    created++;
 
     if (def.options) {
       await prisma.dimFieldOption.createMany({
         data: def.options.map((option, index) => ({
           fieldId: field.id,
-          // Always the normalized SCREAMING_SNAKE_CASE form of englishName — same
-          // convention as every other option/key value in this codebase (see slug.util.ts).
-          value: toSnakeCaseKey(option.englishName),
+          // Normalized SCREAMING_SNAKE_CASE form of englishName by default (same convention
+          // as every other option/key value in this codebase, see slug.util.ts) — unless the
+          // def supplies an explicit override (see ProfileFieldOptionDef's comment).
+          value: option.value ?? toSnakeCaseKey(option.englishName),
           englishName: option.englishName,
           tagalogName: option.tagalogName,
           englishDescription: option.englishName,
@@ -62,6 +65,22 @@ export async function seedProfileFields() {
           sortOrder: index,
         })),
       });
+    }
+
+    return field;
+  };
+
+  let created = 0;
+  for (const def of profileFields) {
+    const field = await createField(def, null);
+    created++;
+
+    // REPEATER_GROUP row-level children — own DimField rows, parentFieldId set to the
+    // parent (see DimField.parentFieldId / field.service.ts's createOrUpdateSubfieldsWith,
+    // the admin-UI equivalent of this same shape).
+    for (const child of def.children ?? []) {
+      await createField(child, field.id);
+      created++;
     }
   }
 

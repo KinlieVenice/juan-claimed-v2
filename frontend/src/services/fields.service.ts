@@ -113,7 +113,11 @@ export interface CompositeFieldPayload {
   anchoredChildren?: AnchoredChildInput[];
 }
 
-export async function getFields(token: string, classification?: FieldClassification, opts?: { conditionable?: boolean }): Promise<DimField[]> {
+export async function getFields(
+  token: string | null | undefined,
+  classification?: FieldClassification,
+  opts?: { conditionable?: boolean },
+): Promise<DimField[]> {
   const params = new URLSearchParams();
   if (classification) params.set("classification", classification);
   // Excludes notConditional fields (e.g. first name, email) at the query level — pass this
@@ -121,7 +125,11 @@ export async function getFields(token: string, classification?: FieldClassificat
   // eligibility), not for the general admin fields list which needs every field.
   if (opts?.conditionable) params.set("conditionable", "true");
   const qs = params.toString();
-  return apiFetch<DimField[]>(`/api/fields${qs ? `?${qs}` : ""}`, { token });
+  // No token = the "public/no account" flow (see field.route.ts's "/public", no-auth) —
+  // every real call site threads its own resolved token from useAuth() explicitly (which is
+  // `string | null`, hence accepting null here too), so an absent one means a genuine guest.
+  const base = token ? "/api/fields" : "/api/fields/public";
+  return apiFetch<DimField[]>(`${base}${qs ? `?${qs}` : ""}`, { token: token ?? undefined });
 }
 
 export interface DimFieldOptionRecord {
@@ -148,7 +156,7 @@ export async function getFieldById(id: string, token: string): Promise<DimFieldW
   return apiFetch<DimFieldWithOptions>(`/api/fields/${id}`, { token });
 }
 
-export async function getSubfields(parentFieldId: string, token: string): Promise<DimField[]> {
+export async function getSubfields(parentFieldId: string, token: string | null | undefined): Promise<DimField[]> {
   const fields = await getFields(token);
   return fields.filter((f) => f.parentFieldId === parentFieldId).sort((a, b) => a.sortOrder - b.sortOrder);
 }

@@ -408,7 +408,7 @@ model DimBenefitFieldCondition {
   benefitRuleGroup   FctBenefitRuleGroup @relation(fields: [benefitRuleGroupId], references: [id])
 
   benefitFieldConditionId String
-  benefitFieldCondition   FctDynamicFieldCondition   @relation("BFC_FDC", fields: [benefitFieldConditionId], references: [id])
+  benefitFieldCondition   FctDynamicFieldCondition @relation("BFC_FDC", fields: [benefitFieldConditionId], references: [id])
 
   fieldConditionOperatorId String
   fieldConditionOperator   DimFieldConditionOperator @relation(fields: [fieldConditionOperatorId], references: [id])
@@ -498,8 +498,8 @@ model DimField {
   anchorField      DimField?  @relation("FieldAnchor", fields: [anchorFieldId], references: [id], onDelete: SetNull)
   anchoredChildren DimField[] @relation("FieldAnchor")
 
-  englishName String @db.VarChar(255)
-  tagalogName String @db.VarChar(255)
+  englishName        String @db.VarChar(255)
+  tagalogName        String @db.VarChar(255)
   englishDescription String
   tagalogDescription String
 
@@ -516,6 +516,11 @@ model DimField {
   // Nationality and Country fields at once; a plain fieldId FK on DimCountries could only
   // ever point at one owner.
   countries DimCountries[]
+
+  // Same pattern as `countries` above, backing the "School" field from DimSchool
+  // (backend/data/schools.json) instead of real DimFieldOption rows — see
+  // prisma/seeders/schoolsSeeder.ts and fieldOptions.service.ts's fetchFieldOptions.
+  schools DimSchool[]
 
   required       Boolean             @default(true)
   sortOrder      Int                 @default(0)
@@ -537,10 +542,10 @@ model DimField {
   // address fields that aren't meaningful eligibility comparators.
   notConditional Boolean             @default(false)
 
-  userFieldAnswers      FctUserFieldAnswer[]
-  userFieldAnswerGroups FctUserFieldAnswerGroup[]
-  fieldOptions          DimFieldOption[]
-  dynamicRuleGroups     FctDynamicRuleGroup[]
+  userFieldAnswers         FctUserFieldAnswer[]
+  userFieldAnswerGroups    FctUserFieldAnswerGroup[]
+  fieldOptions             DimFieldOption[]
+  dynamicRuleGroups        FctDynamicRuleGroup[]
   dependentFieldConditions FctDynamicFieldCondition[] @relation("FDC_DF")
 
   createdAt DateTime @default(now())
@@ -730,7 +735,7 @@ model DimFieldConditionOperator {
   // NOT globally unique — the same operator value (e.g. "EQUALS") is legitimately reused
   // across many input types (TEXT, NUMBER, SINGLE_SELECT, ...). Unique per (value,
   // fieldInputTypeId) instead — see fieldConfigSeeder.ts's upsert, keyed on that pair.
-  value String @db.VarChar(255)
+  value       String @db.VarChar(255)
 
   fieldInputTypeId String
   fieldInputType   DimFieldInputType @relation(fields: [fieldInputTypeId], references: [id])
@@ -871,4 +876,19 @@ model DimCountries {
   fields DimField[]
 
   @@map("dim_countries")
+}
+
+// Standalone reference table — flattened list of backend/data/schools.json's school names
+// (region/type/category dropped, see prisma/seeders/schoolsSeeder.ts). Same "shared
+// dataset backs a field's options instead of per-field DimFieldOption rows" pattern as
+// DimCountries — only the "School" field consumes it today.
+model DimSchool {
+  id String @id @default(uuid())
+
+  name String @db.VarChar(255)
+
+  // Reverse side of DimField.schools.
+  fields DimField[]
+
+  @@map("dim_school")
 }

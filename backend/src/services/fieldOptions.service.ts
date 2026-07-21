@@ -79,11 +79,31 @@ const fetchCountryBackedOptions = async (fieldId: string, kind: "NATIONALITY" | 
   return options;
 };
 
+// Same idea as fetchCountryBackedOptions, backing the "School" field from DimSchool
+// (backend/data/schools.json, see prisma/seeders/schoolsSeeder.ts) instead of real
+// DimFieldOption rows. Only one consumer field today, so no "kind" split needed — the name
+// itself is both englishName/tagalogName and value (see ProfileFieldOptionDef's comment in
+// profileFields.data.ts: these come straight from JSON with no separate code to key off).
+const fetchSchoolBackedOptions = async (fieldId: string) => {
+  const schools = await prisma.dimSchool.findMany({ where: { fields: { some: { id: fieldId } } }, orderBy: { name: "asc" } });
+
+  return schools.map((school, index) => ({
+    id: school.id,
+    fieldId,
+    englishName: school.name,
+    tagalogName: school.name,
+    value: school.name,
+    englishDescription: school.name,
+    tagalogDescription: school.name,
+    sortOrder: index,
+  }));
+};
+
 // FETCH ALL OPTIONS FOR A FIELD
 export const fetchFieldOptions = async (fieldId: string) => {
   const field = await prisma.dimField.findUnique({
     where: { id: fieldId },
-    select: { englishName: true, _count: { select: { countries: true } } },
+    select: { englishName: true, _count: { select: { countries: true, schools: true } } },
   });
 
   // The real DimField<->DimCountries relation is the source of truth for "is this field
@@ -94,6 +114,10 @@ export const fetchFieldOptions = async (fieldId: string) => {
     const normalizedName = toSnakeCaseKey(field.englishName);
     const kind = normalizedName === "NATIONALITY" ? "NATIONALITY" : "COUNTRY";
     return fetchCountryBackedOptions(fieldId, kind);
+  }
+
+  if (field && field._count.schools > 0) {
+    return fetchSchoolBackedOptions(fieldId);
   }
 
   return await prisma.dimFieldOption.findMany({

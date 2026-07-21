@@ -1,18 +1,24 @@
 // Real — wraps /api/benefits and /api/benefit-bundles (backend/routes.md).
 import { apiFetch, apiFetchEnvelope } from "@/lib/api";
-import { evaluateEligibility, type MatchStatus } from "@/lib/eligibility";
-import type { FctBenefit, RuleTreeRoot } from "@/types/domain";
+import {
+  getMyBenefitsEligibility,
+  getGuestBenefitsEligibility,
+  type EligibilityStatus,
+  type GuestEligibilityPayload,
+} from "@/services/eligibility.service";
+import type { FctBenefit } from "@/types/domain";
 
-// token is optional on the read functions (apiFetch falls back to the persisted session
-// token when omitted — see lib/api.ts) since the public applicant-facing pages
-// (EligibleBenefitsPage.tsx etc.) don't thread one through explicitly; admin call sites
-// pass their own from useAuth() anyway, same convention as fields.service.ts.
+// No token = the "public/no account" flow (see benefit.routes.ts's "/public") — every real
+// call site threads its own resolved token from useAuth() explicitly, so an absent one here
+// means a genuine guest, not just an omitted argument.
 export async function getBenefits(token?: string): Promise<FctBenefit[]> {
-  return apiFetch<FctBenefit[]>("/api/benefits", { token });
+  const base = token ? "/api/benefits" : "/api/benefits/public";
+  return apiFetch<FctBenefit[]>(base, { token });
 }
 
 export async function getBenefitById(id: string, token?: string): Promise<FctBenefit> {
-  return apiFetch<FctBenefit>(`/api/benefits/${id}`, { token });
+  const base = token ? `/api/benefits/${id}` : `/api/benefits/public/${id}`;
+  return apiFetch<FctBenefit>(base, { token });
 }
 
 export async function deleteBenefit(id: string, token: string): Promise<void> {
@@ -20,21 +26,32 @@ export async function deleteBenefit(id: string, token: string): Promise<void> {
 }
 
 export interface EligibilityResult {
-  /** Narrowed to a non-null tree — getEligibilityResults filters out benefits without one
-   * before this is built, so consumers don't need to null-check it again. */
-  benefit: FctBenefit & { eligibilityTree: RuleTreeRoot };
-  status: MatchStatus;
+  benefit: FctBenefit;
+  status: EligibilityStatus;
+  /** See eligibility.service.ts's BenefitEligibility — already short-circuit-pruned, so
+   * this is exactly what to prompt for next (never a moot follow-up for an already-decided
+   * benefit). */
+  pendingFieldIds: string[];
 }
 
-// Client-side eligibility check against a live benefit list — lib/eligibility.ts is a
-// self-disclosed simplified matcher (not condition.util.ts's real compare()/
-// matchRuleGroupTree engine), unchanged by this pass; only the benefit source here moved
-// off mock data onto the real GET /api/benefits list + real eligibilityTree shape.
-export async function getEligibilityResults(answers: Record<string, unknown>, token?: string): Promise<EligibilityResult[]> {
-  const benefits = await getBenefits(token);
-  return benefits
-    .filter((benefit): benefit is FctBenefit & { eligibilityTree: RuleTreeRoot } => benefit.eligibilityTree !== null)
-    .map((benefit) => ({ benefit, status: evaluateEligibility(benefit.eligibilityTree, answers) }));
+// Real, server-evaluated eligibility (benefitEligibility.service.ts) against the user's
+// actual stored answers — replaces the old client-side simplified matcher entirely. A
+// benefit with no rule tree still comes back MATCHED/PENDING/NOT_ELIGIBLE from the backend
+// (residency-only, or unconditionally MATCHED if nationwide with no tree).
+//
+// No token = the "public/no account" flow — `guestPayload` (the visitor's in-browser
+// answers, see lib/answers-store.tsx) is required in that case since there's no stored
+// userId for the backend to resolve answers from.
+export async function getEligibilityResults(token?: string, guestPayload?: GuestEligibilityPayload): Promise<EligibilityResult[]> {
+  const [benefits, eligibility] = await Promise.all([
+    getBenefits(token),
+    token ? getMyBenefitsEligibility(token) : getGuestBenefitsEligibility(guestPayload ?? { answers: {} }),
+  ]);
+  const byBenefitId = new Map(eligibility.map((e) => [e.benefitId, e]));
+  return benefits.map((benefit) => {
+    const result = byBenefitId.get(benefit.id);
+    return { benefit, status: result?.status ?? "PENDING", pendingFieldIds: result?.pendingFieldIds ?? [] };
+  });
 }
 
 export interface AttachmentInput {

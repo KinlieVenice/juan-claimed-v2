@@ -14,6 +14,7 @@ import { EligibleBenefitsPage } from "@/pages/public/EligibleBenefitsPage";
 import { AnswerMorePage } from "@/pages/public/AnswerMorePage";
 import { BenefitDetailsPage } from "@/pages/public/BenefitDetailsPage";
 import { ProfilePage } from "@/pages/public/ProfilePage";
+import { AnsweredFormPage } from "@/pages/public/AnsweredFormPage";
 
 import { AllUsersPage } from "@/pages/admin/AllUsersPage";
 import { AgentsStaffPage } from "@/pages/admin/AgentsStaffPage";
@@ -77,6 +78,7 @@ function App() {
                       <Route path="form" element={<FormPage />} />
                       <Route path="my-benefits" element={<EligibleBenefitsPage />} />
                       <Route path="answer-more" element={<AnswerMorePage />} />
+                      <Route path="answered" element={<AnsweredFormPage />} />
                       <Route path="benefits/:id" element={<BenefitDetailsPage />} />
                       <Route element={<RequireRole allow={["USER"]} />}>
                         <Route path="profile" element={<ProfilePage />} />

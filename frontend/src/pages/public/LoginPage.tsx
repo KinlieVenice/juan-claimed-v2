@@ -14,8 +14,8 @@ export function LoginPage() {
   return (
     <AuthLayout>
       <div className="space-y-2 text-center lg:text-left">
-        <h2 className="text-xl font-bold text-foreground">Sign in</h2>
-        <p className="text-sm text-muted-foreground">Choose how you'd like to continue.</p>
+        <h2 className="font-display text-2xl font-black text-slate-900">Sign in</h2>
+        <p className="text-sm text-slate-600">Choose how you'd like to continue.</p>
       </div>
 
       <div className="space-y-3">
@@ -25,22 +25,22 @@ export function LoginPage() {
 
       <div className="flex items-center gap-3">
         <Separator className="flex-1" />
-        <span className="text-xs text-muted-foreground">or</span>
+        <span className="text-xs text-slate-400">or</span>
         <Separator className="flex-1" />
       </div>
 
       <Link
         to="/form"
-        className="block rounded-full border border-border px-4 py-2.5 text-center text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+        className="clay block px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5"
       >
         Continue without signing in
       </Link>
 
-      <div className="border-t border-border pt-6">
+      <div className="border-t border-slate-200 pt-6">
         <button
           type="button"
           onClick={() => setStaffOpen((v) => !v)}
-          className="flex w-full items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="flex w-full items-center justify-between text-xs font-semibold text-slate-500 hover:text-slate-700"
         >
           Agency staff sign-in
           <ChevronDown className={cn("size-3.5 transition-transform", staffOpen && "rotate-180")} />

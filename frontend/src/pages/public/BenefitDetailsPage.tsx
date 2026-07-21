@@ -1,31 +1,107 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, ClipboardList, Lightbulb, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ClipboardList, Lightbulb, Loader2, MapPin, ShieldCheck, Sparkles } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { getBenefitById } from "@/services/benefits.service";
-import type { FctBenefit } from "@/types/domain";
+import { getMyBenefitEligibility, getGuestBenefitEligibility, type BenefitEligibilityDetail } from "@/services/eligibility.service";
+import { getFields } from "@/services/fields.service";
+import { useAnswers } from "@/lib/answers-store";
+import { renderableFields } from "@/lib/field-visibility";
+import type { FctBenefit, DimField } from "@/types/domain";
 import { formatBenefitScope } from "@/lib/benefit-scope";
 import { RequirementAccordion } from "@/components/benefits/RequirementAccordion";
 import { UtilizationAccordion } from "@/components/benefits/UtilizationAccordion";
-import { Button } from "@/components/ui/button";
+import { FieldForm } from "@/components/fields/FieldForm";
+import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
+import { ClayCard } from "@/components/apply/ClayCard";
+import { ConditionChecklist } from "@/components/apply/ConditionChecklist";
 
+const TABS = [
+  { id: "overview", label: "📖 Overview" },
+  { id: "eligibility", label: "✅ Eligibility" },
+  { id: "requirements", label: "📋 Requirements" },
+  { id: "how-to-claim", label: "💰 How to Claim" },
+] as const;
+
+// The single-benefit page — hero + tabs, matching the co-dev's clay design (dev-feat-
+// initial-KIN, commit 8baced3's benefits.tsx BenefitDetail). The Eligibility tab is the new
+// piece: a real per-condition checklist (ConditionChecklist, backed by
+// benefitEligibility.service.ts) plus inline answering for whatever's still pending FOR
+// THIS BENEFIT SPECIFICALLY — answering here re-checks just this one benefit instead of
+// sending the applicant back through the general Answer More flow.
 export function BenefitDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { token } = useAuth();
+  const { answersMap, repeaterRowsMap, isGuest, submit } = useAnswers();
   const [benefit, setBenefit] = React.useState<FctBenefit | null | undefined>(undefined);
+  const [eligibility, setEligibility] = React.useState<BenefitEligibilityDetail | null>(null);
+  const [pendingFields, setPendingFields] = React.useState<DimField[] | null>(null);
+  const [tab, setTab] = React.useState<(typeof TABS)[number]["id"]>("overview");
+  const [draft, setDraft] = React.useState<Record<string, unknown>>({});
+  const [submitting, setSubmitting] = React.useState(false);
+
+  // Guests have no stored userId — their in-browser answers travel inline instead (see
+  // eligibility.service.ts's getGuestBenefitEligibility / lib/answers-store.tsx's guest branch).
+  const reloadEligibility = React.useCallback(() => {
+    if (!id) return;
+    const request = token
+      ? getMyBenefitEligibility(id, token)
+      : getGuestBenefitEligibility(id, { answers: answersMap, repeaterRows: repeaterRowsMap });
+    request.then(setEligibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, token]);
 
   React.useEffect(() => {
     if (!id) return;
-    getBenefitById(id)
+    getBenefitById(id, token ?? undefined)
       .then(setBenefit)
       .catch(() => setBenefit(null));
-  }, [id]);
+    reloadEligibility();
+  }, [id, token, reloadEligibility]);
+
+  React.useEffect(() => {
+    if (!eligibility) return;
+    if (eligibility.pendingFieldIds.length === 0) {
+      setPendingFields([]);
+      return;
+    }
+    const ids = new Set(eligibility.pendingFieldIds);
+    getFields(token).then((all) => setPendingFields(all.filter((f) => ids.has(f.id))));
+  }, [eligibility, token]);
+
+  React.useEffect(() => {
+    setDraft((prev) => ({ ...answersMap, ...prev }));
+  }, [answersMap]);
+
+  const handleAnswerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingFields) return;
+    setSubmitting(true);
+    // Same "only what was actually rendered, eGov fields excluded, repeaters excluded"
+    // rule as FormPage — see its comment for why.
+    const answerable = renderableFields(pendingFields, draft).filter(
+      (f) => (isGuest || !f.eGovField) && f.fieldInputType.value !== "REPEATER_GROUP",
+    );
+    await submit(answerable.map((f) => ({ fieldId: f.id, value: draft[f.id] ?? null })));
+    setSubmitting(false);
+    reloadEligibility();
+  };
 
   if (benefit === undefined) {
-    return <div className="mx-auto max-w-3xl px-6 py-16 text-center text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="apply-bg flex min-h-screen items-center justify-center text-sm text-slate-500">
+        <Loader2 className="mr-2 size-4 animate-spin" /> Loading…
+      </div>
+    );
   }
 
   if (benefit === null) {
-    return <div className="mx-auto max-w-3xl px-6 py-16 text-center text-sm text-muted-foreground">Benefit not found.</div>;
+    return (
+      <div className="apply-bg flex min-h-screen items-center justify-center text-sm text-slate-500">
+        Benefit not found.
+      </div>
+    );
   }
 
   const stats = [
@@ -36,40 +112,146 @@ export function BenefitDetailsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
-      <Button variant="ghost" size="sm" className="mb-4 -ml-2 text-muted-foreground" onClick={() => navigate(-1)}>
-        <ArrowLeft className="size-3.5" /> Back
-      </Button>
+    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+      <ApplyChrome />
 
-      <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{benefit.name}</h1>
-        <p className="text-sm leading-relaxed text-muted-foreground">{benefit.englishDescription}</p>
-      </div>
+      <section className="mx-auto max-w-5xl px-4 py-8 md:px-5 md:py-12">
+        <button
+          onClick={() => navigate(-1)}
+          className="clay mb-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-1"
+        >
+          <ArrowLeft className="size-3.5" /> Back
+        </button>
 
-      <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {stats.map((s) => (
-          <div key={s.label} className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-3 py-4 text-center">
-            <s.icon className="size-4 text-primary" />
-            <span className="text-xs font-medium text-foreground">{s.label}</span>
+        <ClayCard variant="plain" className="relative mb-8 overflow-hidden p-6 md:p-10">
+          <div className="flex flex-col gap-6 md:flex-row md:items-start">
+            <div className="clay-yellow grid h-20 w-20 shrink-0 place-items-center text-5xl md:h-24 md:w-24">🎁</div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase ${
+                    benefit.isNationwide ? "bg-[color:var(--color-ph-blue)] text-white" : "bg-[color:var(--color-ph-yellow)] text-slate-900"
+                  }`}
+                >
+                  {formatBenefitScope(benefit)}
+                </span>
+                {eligibility && (
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase ${
+                      eligibility.status === "MATCHED"
+                        ? "bg-[color:var(--success,#16803c)] text-white"
+                        : eligibility.status === "NOT_ELIGIBLE"
+                          ? "bg-[color:var(--color-ph-red)] text-white"
+                          : "clay-yellow text-slate-900"
+                    }`}
+                  >
+                    {eligibility.status === "MATCHED" ? "You qualify" : eligibility.status === "NOT_ELIGIBLE" ? "Not eligible" : "Pending answers"}
+                  </span>
+                )}
+              </div>
+              <h1 className="font-display text-3xl font-black text-slate-900 md:text-4xl">{benefit.name}</h1>
+              <p className="mt-3 max-w-2xl text-base text-slate-600">{benefit.englishDescription}</p>
+            </div>
           </div>
-        ))}
-      </div>
+        </ClayCard>
 
-      <section className="mb-10 space-y-3">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Requirements</h2>
-          <p className="text-xs text-muted-foreground">What you'll need to apply.</p>
+        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {stats.map((s) => (
+            <ClayCard key={s.label} variant="plain" className="p-4 text-center">
+              <s.icon className="mx-auto size-4 text-[color:var(--color-ph-blue)]" />
+              <p className="mt-1 text-xs font-medium text-slate-700">{s.label}</p>
+            </ClayCard>
+          ))}
         </div>
-        <RequirementAccordion requirements={benefit.benefitRequirements} />
+
+        <div className="mb-8 flex flex-wrap gap-2 border-b border-slate-200">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-6 py-3 text-sm font-semibold transition-all ${
+                tab === t.id ? "border-b-2 border-[color:var(--color-ph-blue)] text-[color:var(--color-ph-blue)]" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "overview" && (
+          <ClayCard variant="blue" className="p-6 md:p-8">
+            <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">What you need to know</h2>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <h3 className="mb-2 font-semibold text-[color:var(--color-ph-blue)]">🇬🇧 English</h3>
+                <p className="text-sm leading-relaxed text-slate-700">{benefit.englishDescription}</p>
+              </div>
+              <div>
+                <h3 className="mb-2 font-semibold text-[color:var(--color-ph-red)]">🇵🇭 Tagalog</h3>
+                <p className="text-sm leading-relaxed text-slate-700">{benefit.tagalogDescription}</p>
+              </div>
+            </div>
+          </ClayCard>
+        )}
+
+        {tab === "eligibility" && (
+          <div className="space-y-6">
+            <ClayCard variant="plain" className="p-6 md:p-8">
+              <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">Where you stand</h2>
+              {eligibility ? (
+                <ConditionChecklist leaves={eligibility.leaves} />
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Loader2 className="size-4 animate-spin" /> Checking your answers…
+                </div>
+              )}
+            </ClayCard>
+
+            {eligibility?.status === "PENDING" && pendingFields && pendingFields.length > 0 && (
+              <ClayCard variant="yellow" className="p-6 md:p-8">
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="clay grid h-10 w-10 place-items-center text-lg">
+                    <Sparkles className="size-4 text-[color:var(--color-ph-blue)]" />
+                  </span>
+                  <h2 className="font-display text-xl font-bold text-slate-900">Answer these to find out</h2>
+                </div>
+                <form onSubmit={handleAnswerSubmit} className="space-y-6">
+                  <div className="clay p-4">
+                    <FieldForm fields={pendingFields} values={draft} onChange={(fieldId, v) => setDraft((prev) => ({ ...prev, [fieldId]: v }))} />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="clay-blue group inline-flex items-center gap-2 px-6 py-3 text-sm font-bold text-[color:var(--color-ph-blue)] transition hover:-translate-y-1 disabled:pointer-events-none disabled:opacity-60"
+                    >
+                      {submitting && <Loader2 className="size-4 animate-spin" />}
+                      Check again
+                      <span className="transition group-hover:translate-x-1">→</span>
+                    </button>
+                  </div>
+                </form>
+              </ClayCard>
+            )}
+          </div>
+        )}
+
+        {tab === "requirements" && (
+          <ClayCard variant="plain" className="p-6 md:p-8">
+            <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">What you need to prepare</h2>
+            <RequirementAccordion requirements={benefit.benefitRequirements} />
+          </ClayCard>
+        )}
+
+        {tab === "how-to-claim" && (
+          <ClayCard variant="yellow" className="p-6 md:p-8">
+            <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">How to make the most of it</h2>
+            <UtilizationAccordion utilizations={benefit.benefitUtilizations} />
+          </ClayCard>
+        )}
       </section>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Utilization</h2>
-          <p className="text-xs text-muted-foreground">How to make the most of this benefit once granted.</p>
-        </div>
-        <UtilizationAccordion utilizations={benefit.benefitUtilizations} />
-      </section>
+      <ApplyFooter />
     </div>
   );
 }
