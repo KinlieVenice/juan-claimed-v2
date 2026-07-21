@@ -1,5 +1,5 @@
 // prisma/factories/demoPersonaFactory.ts
-// Seeds 5 demo USER (citizen) accounts, one per life-stage persona, each with a believable
+// Seeds 6 demo USER (citizen) accounts, one per life-stage persona, each with a believable
 // but DELIBERATELY INCOMPLETE set of GLOBAL/eGov field answers already filled in — as if
 // they'd already gone through eGov SSO once. This is the "Google SSO" mock-up the flow spec
 // calls for: real eGov SSO never stores its fields in our DB (single source of truth is the
@@ -171,6 +171,42 @@ const personas: PersonaDef[] = [
       School: null,
       From: 2023,
       To: null, // still ongoing
+    },
+  },
+  {
+    // Everyman — Carmona, Cavite (same city as the Carmona demo agent, so that agent has a
+    // second real applicant to see besides the Student persona above). Formerly seeded
+    // answer-less by userRoleSeeder.ts's old "Standard User Account" block — every USER
+    // account needs real Residence at minimum (it's a required field), so this account now
+    // gets the same full, believable treatment as every other persona.
+    username: "juan_delacruz",
+    email: "juan.delacruz@gmail.com",
+    firstName: "Juan",
+    middleName: null,
+    lastName: "Dela Cruz",
+    answers: {
+      "Date of Birth": "1988-06-12",
+      Gender: "MALE",
+      "Mobile Number": "+639178765432",
+      Nationality: "Filipino",
+      Country: "Philippines",
+      Residence: "042104008", // Barangay Lantic, Carmona, Cavite
+      "Street Address": "56 Rizal Avenue",
+      "Postal Code": 4116,
+      "Full Address": "56 Rizal Avenue, Barangay Lantic, Carmona, Cavite",
+      Occupation: "PRIVATE_EMPLOYEES",
+      "Marital Status": "Married",
+      Religion: "Roman Catholic",
+      Weight: 68,
+      Height: 165,
+      Industry: "Manufacturing",
+      "Salary Range": "40,001-60,000",
+    },
+    education: {
+      Level: "Bachelor",
+      School: null, // intentional gap
+      From: 2006,
+      To: 2010,
     },
   },
   {

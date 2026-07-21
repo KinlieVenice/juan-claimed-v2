@@ -51,3 +51,28 @@ export function BenefitCard({ benefit, status, pendingCount }: { benefit: FctBen
     </ClayCard>
   );
 }
+
+// Mirrors BenefitCard's real structure/spacing line-for-line (icon+badge row, title,
+// 2-line description, footer row) instead of a plain blank pulsing box — so the loading
+// state doesn't visibly jump/reflow into a differently-shaped layout once real cards land.
+export function BenefitCardSkeleton() {
+  return (
+    <ClayCard variant="plain" className="p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-slate-200" />
+        <div className="h-5 w-20 shrink-0 animate-pulse rounded-full bg-slate-200" />
+      </div>
+
+      <div className="mt-3 h-6 w-3/4 animate-pulse rounded-md bg-slate-200" />
+      <div className="mt-2 space-y-1.5">
+        <div className="h-4 w-full animate-pulse rounded-md bg-slate-200" />
+        <div className="h-4 w-2/3 animate-pulse rounded-md bg-slate-200" />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <div className="h-4 w-28 animate-pulse rounded-md bg-slate-200" />
+        <div className="h-4 w-20 animate-pulse rounded-md bg-slate-200" />
+      </div>
+    </ClayCard>
+  );
+}

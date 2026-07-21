@@ -10,6 +10,7 @@ import {
   updateBenefitBundle,
   deleteBenefitItem,
   deleteBenefitItemAttachment,
+  getBenefitById,
   type BenefitBundleInput,
   type EligibilityTreeInput,
 } from "@/services/benefits.service";
@@ -132,21 +133,30 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
       setPsgcLocationNames(Object.fromEntries(benefit.benefitPsgcCodes.map((pc) => [pc.psgcCode, pc.locationName ?? pc.psgcCode])));
       setGroupIds(benefit.benefitGroups.map((g) => g.groupId));
 
-      setRequirements(toLocalItems(benefit.benefitRequirements));
+      // Requirements/utilizations/how-to-applies here come from getBenefits (the admin list
+      // row this modal was opened from), which — same reasoning as benefit.service.ts's
+      // listBenefits comment — only carries these for their COUNTS, without each item's
+      // .attachments (that's a manual polymorphic lookup, only done for a single benefit).
+      // Reset to empty here and let the getBenefitById effect below fill in the real,
+      // attachment-hydrated versions once it resolves, instead of crashing on
+      // item.attachments.map with attachments undefined.
+      setRequirements([]);
       setDeletedRequirementIds([]);
       setDeletedRequirementAttachmentIds([]);
 
-      setUtilizations(toLocalItems(benefit.benefitUtilizations));
+      setUtilizations([]);
       setDeletedUtilizationIds([]);
       setDeletedUtilizationAttachmentIds([]);
 
-      setHowToApplies(toLocalItems(benefit.benefitHowToApplies));
+      setHowToApplies([]);
       setDeletedHowToApplyIds([]);
       setDeletedHowToApplyAttachmentIds([]);
 
-      const loadedTree = benefit.eligibilityTree ?? emptyTree();
-      setEligibilityTree(loadedTree);
-      originalStrippedTreeRef.current = JSON.stringify(stripTreeIds(loadedTree));
+      // eligibilityTree isn't on the list row at all (only getBenefitById computes it) —
+      // starts empty, same as requirements/etc above, until the fetch below fills it in.
+      const freshTree = emptyTree();
+      setEligibilityTree(freshTree);
+      originalStrippedTreeRef.current = JSON.stringify(stripTreeIds(freshTree));
     } else {
       setName("");
       setEnglishDescription("");
@@ -174,6 +184,24 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
     }
   }, [open, benefit]);
 
+  // getBenefits (list view) doesn't embed each item's attachments or the eligibility tree —
+  // only the single-benefit GET does (see the reset-to-empty comment above) — so both are
+  // fetched separately, in one call, when the form opens for editing/viewing. Same
+  // "sync cheap fields from the prop immediately, fetch the heavier nested data separately"
+  // split FieldFormModal.tsx uses for options/subfields.
+  React.useEffect(() => {
+    if (!open || !benefit || !token) return;
+    getBenefitById(benefit.id, token).then((full) => {
+      setRequirements(toLocalItems(full.benefitRequirements));
+      setUtilizations(toLocalItems(full.benefitUtilizations));
+      setHowToApplies(toLocalItems(full.benefitHowToApplies));
+
+      const loadedTree = full.eligibilityTree ?? emptyTree();
+      setEligibilityTree(loadedTree);
+      originalStrippedTreeRef.current = JSON.stringify(stripTreeIds(loadedTree));
+    });
+  }, [open, benefit, token]);
+
   // notConditional fields excluded at the query level — a benefit's eligibility tree must
   // never be able to target one (see field.service.ts's fetchAllFields conditionable param).
   React.useEffect(() => {
@@ -196,12 +224,34 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
     [fields, phLocationHierarchyId],
   );
 
+  const scopeValue = React.useMemo(() => scopes.find((s) => s.id === user?.scopeId)?.value, [scopes, user?.scopeId]);
+
+  // A NATIONAL-scope agent's own agency always owns their benefits nationwide — no reason
+  // to ask them to pick, and picking "not nationwide" would just get rejected server-side
+  // anyway (see benefit.service.ts's validateBenefitInput). A scoped-down agent (province,
+  // city, barangay, ...) is the mirror case: they can NEVER go nationwide, same server rule.
+  // SUPERADMIN is intentionally excluded from both — they have no "own" group/jurisdiction
+  // to lock to, so they keep the free, unrestricted picker.
+  const isNationalAgent = user?.role === "AGENT" && scopeValue === "NATIONAL";
+  const isScopedAgent = user?.role === "AGENT" && !!scopeValue && scopeValue !== "NATIONAL" && scopeValue !== "SUPERADMIN";
+
   // Resolves once scopes/user are available — empty (unlocked) for SUPERADMIN/NATIONAL.
   React.useEffect(() => {
     if (!open || !user) return;
-    const scopeValue = scopes.find((s) => s.id === user.scopeId)?.value;
     resolveAgentJurisdictionPrefix(user.role, scopeValue, user.psgcCode).then(setJurisdictionPrefix);
-  }, [open, user, scopes]);
+  }, [open, user, scopeValue]);
+
+  // Forces the locked defaults on CREATE only — an existing benefit's already-saved scope
+  // (set at whatever time it was created) is never overwritten just by opening it to edit.
+  React.useEffect(() => {
+    if (!open || benefit || !user) return;
+    if (isNationalAgent) {
+      setIsNationwide(true);
+      setGroupIds(user.groupId ? [user.groupId] : []);
+    } else if (isScopedAgent) {
+      setIsNationwide(false);
+    }
+  }, [open, benefit, user, isNationalAgent, isScopedAgent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,10 +419,17 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
               onGroupIdsChange={setGroupIds}
               groups={groups}
               jurisdictionPrefix={jurisdictionPrefix}
+              nationwideLocked={isNationalAgent || isScopedAgent}
+              groupsLocked={isNationalAgent}
             />
           </TabsContent>
 
-          <TabsContent value="requirements" className="space-y-6 pt-4" inert={viewOnly || undefined}>
+          {/* No `inert` here (unlike the other tabs) — these rows have their own
+              expand/collapse chevron that a viewer still needs to click to actually read a
+              requirement's details; `inert` would block that too, along with the editing
+              chrome it's meant to hide. BenefitItemListEditor's own `disabled` prop is what
+              locks down the actual inputs/Add/Remove instead. */}
+          <TabsContent value="requirements" className="space-y-6 pt-4">
             <p className="text-xs text-muted-foreground">Optional — documents an applicant needs to provide.</p>
             <BenefitItemListEditor
               items={requirements}
@@ -386,7 +443,8 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
             />
           </TabsContent>
 
-          <TabsContent value="utilization" className="space-y-6 pt-4" inert={viewOnly || undefined}>
+          {/* No `inert` — see the requirements TabsContent above for why. */}
+          <TabsContent value="utilization" className="space-y-6 pt-4">
             <p className="text-xs text-muted-foreground">Optional — tips for making the most of this benefit once granted.</p>
             <BenefitItemListEditor
               items={utilizations}
@@ -400,7 +458,8 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
             />
           </TabsContent>
 
-          <TabsContent value="howToApply" className="space-y-6 pt-4" inert={viewOnly || undefined}>
+          {/* No `inert` — see the requirements TabsContent above for why. */}
+          <TabsContent value="howToApply" className="space-y-6 pt-4">
             <p className="text-xs text-muted-foreground">Optional — step-by-step application instructions.</p>
             <BenefitItemListEditor
               items={howToApplies}

@@ -9,6 +9,7 @@ export const listRequirements = async (benefitId: string, user: any) => {
 
   return prisma.fctBenefitRequirement.findMany({
     where: { benefitId, deletedAt: null },
+    orderBy: { createdAt: "desc" },
   });
 };
 

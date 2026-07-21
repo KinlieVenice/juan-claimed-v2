@@ -121,8 +121,8 @@ function ItemRow({
 }) {
   const [expanded, setExpanded] = React.useState(!item.id);
 
-  const nameTranslate = useAutoTranslate({ sourceValue: item.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
-  const descriptionTranslate = useAutoTranslate({ sourceValue: item.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token });
+  const nameTranslate = useAutoTranslate({ sourceValue: item.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token, enabled: !disabled });
+  const descriptionTranslate = useAutoTranslate({ sourceValue: item.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token, enabled: !disabled });
 
   return (
     <div className={cn("rounded-lg border border-border bg-card")}>
@@ -144,17 +144,25 @@ function ItemRow({
       {expanded && (
         <div className="space-y-4 border-t border-border p-3">
           <div className="grid grid-cols-2 gap-4">
-            <TextField label="English Name" value={item.englishName} onChange={(v) => onChange({ englishName: v })} required />
-            <TextField label="Tagalog Name" value={item.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
+            <TextField label="English Name" value={item.englishName} onChange={(v) => onChange({ englishName: v })} required disabled={disabled} />
+            <TextField
+              label="Tagalog Name"
+              value={item.tagalogName}
+              onChange={nameTranslate.handleTargetChange}
+              required
+              badge={nameTranslate.badge}
+              disabled={disabled}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <TextareaField label="English Description" value={item.englishDescription} onChange={(v) => onChange({ englishDescription: v })} required />
+            <TextareaField label="English Description" value={item.englishDescription} onChange={(v) => onChange({ englishDescription: v })} required disabled={disabled} />
             <TextareaField
               label="Tagalog Description"
               value={item.tagalogDescription}
               onChange={descriptionTranslate.handleTargetChange}
               required
               badge={descriptionTranslate.badge}
+              disabled={disabled}
             />
           </div>
 
@@ -164,6 +172,7 @@ function ItemRow({
               attachments={item.attachments}
               onChange={(attachments) => onChange({ attachments })}
               onRemoveExisting={onRemoveExistingAttachment}
+              disabled={disabled}
             />
           </div>
         </div>

@@ -67,7 +67,19 @@ export function useAutoTranslate({ sourceValue, onTargetChange, token, enabled =
     [token, enabled],
   );
 
+  // Skips the very first run of this effect — without it, simply OPENING a modal to view or
+  // edit an existing record (which loads a real, already-translated englishName straight
+  // into sourceValue) counted as "the English text changed" and kicked off a background
+  // retranslate a second later, silently overwriting a perfectly good existing Tagalog
+  // value nobody asked to touch. Only a genuine change AFTER mount (the configurer actually
+  // typing) should ever arm the debounce.
+  const isFirstRun = React.useRef(true);
+
   React.useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
     if (!enabled || touched) return;
     if (!sourceValue.trim()) return;
     const timer = setTimeout(() => runTranslate(sourceValue), DEBOUNCE_MS);

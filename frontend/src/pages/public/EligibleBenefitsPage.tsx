@@ -4,7 +4,7 @@ import { Gift, Sparkles, FileText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAnswers } from "@/lib/answers-store";
 import { getEligibilityResults, type EligibilityResult } from "@/services/benefits.service";
-import { BenefitCard } from "@/components/benefits/BenefitCard";
+import { BenefitCard, BenefitCardSkeleton } from "@/components/benefits/BenefitCard";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
 import { ClayCard } from "@/components/apply/ClayCard";
 
@@ -63,8 +63,8 @@ export function EligibleBenefitsPage() {
 
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="clay h-40 animate-pulse" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <BenefitCardSkeleton key={i} />
               ))}
             </div>
           ) : matched.length === 0 ? (

@@ -9,6 +9,7 @@ export const listUtilizations = async (benefitId: string, user: any) => {
 
   return prisma.fctBenefitUtilization.findMany({
     where: { benefitId, deletedAt: null },
+    orderBy: { createdAt: "desc" },
   });
 };
 

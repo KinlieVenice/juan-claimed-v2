@@ -82,7 +82,7 @@ function OptionRow({
   token: string | null | undefined;
   disabled?: boolean;
 }) {
-  const nameTranslate = useAutoTranslate({ sourceValue: option.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
+  const nameTranslate = useAutoTranslate({ sourceValue: option.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token, enabled: !disabled });
 
   return (
     <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3">

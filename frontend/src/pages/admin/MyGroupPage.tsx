@@ -1,9 +1,9 @@
 import * as React from "react";
-import { Building2, Contact } from "lucide-react";
+import { Contact } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { getGroupById, getUsers, filterAgentMates, type UserGroup, type RealUser } from "@/services/users.service";
-import { EmptyState } from "@/components/EmptyState";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { getScopes } from "@/services/scopes.service";
+import { resolveAgentJurisdictionPrefix } from "@/lib/agentJurisdiction";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
@@ -13,7 +13,12 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 // to, instead of a second standalone page for what's really one "my group" concept.
 export function MyGroupPage() {
   const { user, token } = useAuth();
-  const [group, setGroup] = React.useState<UserGroup | null | undefined>(undefined);
+  const [group, setGroup] = React.useState<UserGroup | null>(null);
+  // A scoped-down agent (province/city/barangay, no real DimGroup) doesn't have a "group" —
+  // their org unit IS their own location (e.g. "Cavite", "Lantic"). Resolved the same way
+  // BenefitFormModal locks its scope picker: the deepest entry of their own jurisdiction
+  // chain is their own location's name.
+  const [locationName, setLocationName] = React.useState<string | null>(null);
   const [mates, setMates] = React.useState<RealUser[] | null>(null);
 
   React.useEffect(() => {
@@ -23,6 +28,19 @@ export function MyGroupPage() {
     }
     getGroupById(user.groupId).then(setGroup).catch(() => setGroup(null));
   }, [user?.groupId]);
+
+  React.useEffect(() => {
+    if (!user || user.groupId || !token) {
+      setLocationName(null);
+      return;
+    }
+    getScopes(token).then((scopes) => {
+      const scopeValue = scopes.find((s) => s.id === user.scopeId)?.value;
+      resolveAgentJurisdictionPrefix(user.role, scopeValue, user.psgcCode).then((prefix) => {
+        setLocationName(prefix.at(-1)?.label ?? null);
+      });
+    });
+  }, [user, token]);
 
   React.useEffect(() => {
     if (!user || !token) return;
@@ -67,19 +85,11 @@ export function MyGroupPage() {
         <p className="text-sm text-muted-foreground">The organization you're assigned to, and who else is in it.</p>
       </div>
 
-      {group === undefined ? (
-        <div className="h-32 animate-pulse rounded-xl bg-muted/60" />
-      ) : group === null ? (
-        <EmptyState icon={Building2} title="No Group Assigned" description="Ask a Superadmin to assign you to a group." />
-      ) : (
-        <Card className="max-w-md gap-2 py-5">
-          <CardHeader>
-            <CardTitle className="text-base">{group.englishName}</CardTitle>
-            <CardDescription>{group.englishDescription}</CardDescription>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">Role: {user?.role}</CardContent>
-        </Card>
-      )}
+      <div className="max-w-md rounded-lg border border-border px-4 py-3">
+        <p className="text-sm font-semibold text-foreground">{group?.englishName ?? locationName ?? "—"}</p>
+        {group?.englishDescription && <p className="text-xs text-muted-foreground">{group.englishDescription}</p>}
+        <p className="text-xs text-muted-foreground">Role: {user?.role}</p>
+      </div>
 
       <DataTable
         columns={columns}

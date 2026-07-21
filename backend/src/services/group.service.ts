@@ -2,7 +2,7 @@ import { prisma } from "../utils/prisma.js";
 import type { CreateUpdateGroupDto } from "../requests/group.request.js";
 
 export const fetchAllGroups = async () => {
-  return await prisma.dimGroup.findMany({ where: { deletedAt: null } });
+  return await prisma.dimGroup.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } });
 };
 
 export const fetchGroupById = async (id: string) => {

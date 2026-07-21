@@ -288,8 +288,8 @@ function ChildRow({
   const isSelectType = inputType?.value === "SINGLE_SELECT" || inputType?.value === "MULTI_SELECT";
   const isHierarchyType = inputType?.value === "HIERARCHY_SELECT";
 
-  const nameTranslate = useAutoTranslate({ sourceValue: child.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
-  const descriptionTranslate = useAutoTranslate({ sourceValue: child.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token });
+  const nameTranslate = useAutoTranslate({ sourceValue: child.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token, enabled: !disabled });
+  const descriptionTranslate = useAutoTranslate({ sourceValue: child.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token, enabled: !disabled });
 
   return (
     <div className={cn("rounded-lg border border-border bg-card")}>

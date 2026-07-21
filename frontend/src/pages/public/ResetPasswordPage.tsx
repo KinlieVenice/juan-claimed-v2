@@ -51,7 +51,7 @@ export function ResetPasswordPage() {
 
       <form onSubmit={handleSubmit} className="space-y-7">
         <TextField
-          label="Temporary password"
+          label="Current password"
           type="password"
           value={currentPassword}
           onChange={setCurrentPassword}

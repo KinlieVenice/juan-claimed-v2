@@ -122,21 +122,11 @@ export async function seedUsersAndRoles() {
     },
   });
 
-  // D. Standard User Account (Scope: NULL, Group: NULL, PsgcCode: NULL)
-  await prisma.dimUser.upsert({
-    where: { email: "juan.delacruz@gmail.com" },
-    update: {},
-    create: {
-      username: "juan_delacruz",
-      email: "juan.delacruz@gmail.com",
-      firstName: "Juan",
-      lastName: "Dela Cruz",
-      role: UserRole.USER,
-      scopeId: null,
-      groupId: null,
-      psgcCode: null,
-    },
-  });
+  // D. Standard User Account (Scope: NULL, Group: NULL, PsgcCode: NULL) — juan.delacruz@gmail.com
+  // used to be created here, answer-less (no Residence, no anything, despite Residence being
+  // a required field). It's now seeded as a full persona in demoPersonaFactory.ts instead
+  // (same identity columns — role USER, scope/group/psgcCode all null — just with real,
+  // believable field answers), so it isn't duplicated here anymore.
 
   console.log("Users synchronized.");
 }

@@ -21,6 +21,10 @@ const serializeBundle = (bundle: any) => ({
     ...u,
     attachments: u.attachments.map((a: any) => ({ ...a, fileSize: a.fileSize?.toString() })),
   })),
+  howToApplies: bundle.howToApplies.map((h: any) => ({
+    ...h,
+    attachments: h.attachments.map((a: any) => ({ ...a, fileSize: a.fileSize?.toString() })),
+  })),
 });
 
 export const createBenefitBundle = async (req: Request, res: Response) => {

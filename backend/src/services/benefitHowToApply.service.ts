@@ -9,6 +9,7 @@ export const listHowToApplies = async (benefitId: string, user: any) => {
 
   return prisma.fctBenefitHowToApply.findMany({
     where: { benefitId, deletedAt: null },
+    orderBy: { createdAt: "desc" },
   });
 };
 

@@ -11,6 +11,7 @@ export const fetchAllUsers = async () => {
       scope: true,
       group: true,
     },
+    orderBy: { createdAt: "desc" },
   });
   return users.map(omitPassHash);
 };

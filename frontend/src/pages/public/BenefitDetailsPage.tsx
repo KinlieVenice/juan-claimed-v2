@@ -12,6 +12,7 @@ import type { FctBenefit, DimField, DimFieldConditionOperator, DimFieldHierarchy
 import { formatBenefitScope } from "@/lib/benefit-scope";
 import { RequirementAccordion } from "@/components/benefits/RequirementAccordion";
 import { UtilizationAccordion } from "@/components/benefits/UtilizationAccordion";
+import { HowToApplyAccordion } from "@/components/benefits/HowToApplyAccordion";
 import { FieldForm } from "@/components/fields/FieldForm";
 import { ConditionTreeView } from "@/components/fields/ConditionTreeView";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
@@ -22,7 +23,8 @@ const TABS = [
   { id: "overview", label: "📖 Overview" },
   { id: "eligibility", label: "✅ Eligibility" },
   { id: "requirements", label: "📋 Requirements" },
-  { id: "how-to-claim", label: "💰 How to Claim" },
+  { id: "utilization", label: "💡 Utilization" },
+  { id: "how-to-apply", label: "🚀 How to Apply" },
 ] as const;
 
 // The single-benefit page — hero + tabs, matching the co-dev's clay design (dev-feat-
@@ -200,19 +202,17 @@ export function BenefitDetailsPage() {
         </div>
 
         {tab === "overview" && (
-          <ClayCard variant="blue" className="p-6 md:p-8">
-            <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">What you need to know</h2>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <h3 className="mb-2 font-semibold text-[color:var(--color-ph-blue)]">🇬🇧 English</h3>
-                <p className="text-sm leading-relaxed text-slate-700">{benefit.englishDescription}</p>
-              </div>
-              <div>
-                <h3 className="mb-2 font-semibold text-[color:var(--color-ph-red)]">🇵🇭 Tagalog</h3>
-                <p className="text-sm leading-relaxed text-slate-700">{benefit.tagalogDescription}</p>
-              </div>
-            </div>
-          </ClayCard>
+          <div className="space-y-6">
+            <ClayCard variant="blue" className="p-6 md:p-8">
+              <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">🇬🇧 English</h2>
+              <p className="text-sm leading-relaxed text-slate-700">{benefit.englishDescription}</p>
+            </ClayCard>
+
+            <ClayCard variant="red" className="p-6 md:p-8">
+              <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">🇵🇭 Tagalog</h2>
+              <p className="text-sm leading-relaxed text-slate-700">{benefit.tagalogDescription}</p>
+            </ClayCard>
+          </div>
         )}
 
         {tab === "eligibility" && (
@@ -276,10 +276,17 @@ export function BenefitDetailsPage() {
           </ClayCard>
         )}
 
-        {tab === "how-to-claim" && (
+        {tab === "utilization" && (
           <ClayCard variant="yellow" className="p-6 md:p-8">
             <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">How to make the most of it</h2>
             <UtilizationAccordion utilizations={benefit.benefitUtilizations} />
+          </ClayCard>
+        )}
+
+        {tab === "how-to-apply" && (
+          <ClayCard variant="green" className="p-6 md:p-8">
+            <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">Step-by-step application</h2>
+            <HowToApplyAccordion steps={benefit.benefitHowToApplies} />
           </ClayCard>
         )}
       </section>

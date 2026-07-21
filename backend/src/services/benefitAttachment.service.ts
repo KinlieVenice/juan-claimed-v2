@@ -51,6 +51,7 @@ export const listParentAttachments = async (
 
   return prisma.fctAttachment.findMany({
     where: { ...entityWhere(parentType, parentId), deletedAt: null },
+    orderBy: { createdAt: "desc" },
   });
 };
 

@@ -364,13 +364,44 @@ export interface GuestAnswerSource {
   repeaterRows?: Record<string, Array<Record<string, unknown>>> | undefined;
 }
 
+// The doc comment above says "same shape resolveAnswersMapWith produces" — true for every
+// other input type, but NOT for HIERARCHY_SELECT: resolveAnswersMapWith always decodes a
+// signed-in user's answer through decodeFieldValue({forEvaluation:true}), turning a raw
+// leaf PSGC/node value into its full root-first ANCESTOR PATH array (what evaluateResidency
+// and evaluateHierarchySelect's BELONGS_TO both require). A guest's answersMap
+// (frontend/src/lib/answers-store.tsx) never round-trips through that — it's whatever raw
+// leaf value FieldInput.tsx originally captured, still a bare string. Left undecoded, every
+// non-nationwide benefit's residency check (and any HIERARCHY_SELECT eligibility condition)
+// silently failed for every guest regardless of where they actually said they lived
+// (Array.isArray(rawString) is false, so the "ancestor path" was always treated as empty).
+// Decoded once here, mirroring exactly what resolveAnswersMapWith already does for real users.
+async function decodeGuestHierarchyAnswers(db: DbClient, answers: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const candidateFieldIds = Object.entries(answers)
+    .filter(([, value]) => typeof value === "string")
+    .map(([fieldId]) => fieldId);
+  if (candidateFieldIds.length === 0) return answers;
+
+  const hierarchyFields = await db.dimField.findMany({
+    where: { id: { in: candidateFieldIds }, fieldInputType: { value: "HIERARCHY_SELECT" } },
+    include: { fieldInputType: true, hierarchy: { select: { key: true } } },
+  });
+  if (hierarchyFields.length === 0) return answers;
+
+  const decoded = { ...answers };
+  for (const field of hierarchyFields) {
+    const raw = answers[field.id] as string;
+    decoded[field.id] = await decodeFieldValue(db, field as AnswerableField, raw, { forEvaluation: true });
+  }
+  return decoded;
+}
+
 async function evaluateBenefitEligibilityForAnswersWith(
   db: DbClient,
   benefit: BenefitForEligibility,
   source: GuestAnswerSource,
 ): Promise<BenefitEligibilityResult> {
   const tree = await fetchBenefitRuleTreeWith(db, benefit.id);
-  const baseAnswers = source.answers;
+  const baseAnswers = await decodeGuestHierarchyAnswers(db, source.answers);
   const residency = await evaluateResidency(db, benefit, baseAnswers);
 
   if (!tree) {
@@ -412,7 +443,7 @@ export const evaluateBenefitEligibilityDetailForAnswers = async (benefitId: stri
   if (!benefit) throw new Error("BENEFIT_NOT_FOUND");
 
   const tree = await fetchBenefitRuleTreeWith(prisma, benefit.id);
-  const baseAnswers = source.answers;
+  const baseAnswers = await decodeGuestHierarchyAnswers(prisma, source.answers);
   const residency = await evaluateResidency(prisma, benefit, baseAnswers);
   const residenceField = benefit.isNationwide ? null : await findResidenceField(prisma);
 

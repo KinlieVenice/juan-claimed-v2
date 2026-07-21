@@ -747,12 +747,12 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
 
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-foreground">Levels</Label>
-                        <HierarchyLevelsEditor levels={hierarchyLevels} onChange={setHierarchyLevels} token={token} />
+                        <HierarchyLevelsEditor levels={hierarchyLevels} onChange={setHierarchyLevels} token={token} disabled={viewOnly} />
                       </div>
 
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-foreground">Values</Label>
-                        <HierarchyNodeTreeEditor levels={hierarchyLevels} nodes={hierarchyNodes} onChange={setHierarchyNodes} token={token} />
+                        <HierarchyNodeTreeEditor levels={hierarchyLevels} nodes={hierarchyNodes} onChange={setHierarchyNodes} token={token} disabled={viewOnly} />
                       </div>
                     </div>
                   )}

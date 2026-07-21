@@ -29,11 +29,13 @@ export function HierarchyLevelsEditor({
   levels,
   onChange,
   token,
+  disabled,
 }: {
   levels: LocalHierarchyLevel[];
   onChange: (levels: LocalHierarchyLevel[]) => void;
   /** Powers each level's English -> Tagalog auto-translate (see useAutoTranslate.ts). */
   token: string | null | undefined;
+  disabled?: boolean;
 }) {
   const update = (localId: string, patch: Partial<LocalHierarchyLevel>) => {
     onChange(levels.map((l) => (l.localId === localId ? { ...l, ...patch } : l)));
@@ -44,12 +46,22 @@ export function HierarchyLevelsEditor({
       {levels.length === 0 && <p className="text-xs text-muted-foreground">No levels yet — add at least one (e.g. "Region", then "Province", then "Barangay").</p>}
 
       {levels.map((level, index) => (
-        <HierarchyLevelRow key={level.localId} level={level} index={index} onChange={(patch) => update(level.localId, patch)} onRemove={() => onChange(levels.filter((l) => l.localId !== level.localId))} token={token} />
+        <HierarchyLevelRow
+          key={level.localId}
+          level={level}
+          index={index}
+          onChange={(patch) => update(level.localId, patch)}
+          onRemove={() => onChange(levels.filter((l) => l.localId !== level.localId))}
+          token={token}
+          disabled={disabled}
+        />
       ))}
 
-      <Button type="button" size="sm" variant="outline" onClick={() => onChange([...levels, emptyLevel()])}>
-        <Plus /> Add Level
-      </Button>
+      {!disabled && (
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange([...levels, emptyLevel()])}>
+          <Plus /> Add Level
+        </Button>
+      )}
     </div>
   );
 }
@@ -60,14 +72,16 @@ function HierarchyLevelRow({
   onChange,
   onRemove,
   token,
+  disabled,
 }: {
   level: LocalHierarchyLevel;
   index: number;
   onChange: (patch: Partial<LocalHierarchyLevel>) => void;
   onRemove: () => void;
   token: string | null | undefined;
+  disabled?: boolean;
 }) {
-  const nameTranslate = useAutoTranslate({ sourceValue: level.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
+  const nameTranslate = useAutoTranslate({ sourceValue: level.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token, enabled: !disabled });
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-border p-3">
@@ -76,9 +90,11 @@ function HierarchyLevelRow({
         <TextField label="English Name" value={level.englishName} onChange={(v) => onChange({ englishName: v })} required />
         <TextField label="Tagalog Name" value={level.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
       </div>
-      <Button type="button" size="icon" variant="ghost" className="mt-1 size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
-        <Trash2 className="size-4" />
-      </Button>
+      {!disabled && (
+        <Button type="button" size="icon" variant="ghost" className="mt-1 size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+          <Trash2 className="size-4" />
+        </Button>
+      )}
     </div>
   );
 }
@@ -89,13 +105,14 @@ interface HierarchyNodeTreeEditorProps {
   onChange: (nodes: LocalHierarchyNode[]) => void;
   /** Powers each node's English -> Tagalog auto-translate (see useAutoTranslate.ts). */
   token: string | null | undefined;
+  disabled?: boolean;
 }
 
 // A recursive node tree, depth-limited by however many levels were defined above — e.g. 3
 // levels means root nodes ("Region") can have children ("Province"), which can have
 // children ("Barangay"), but no deeper. Mirrors FieldConditionTreeBuilder's recursive
 // group-editor pattern, one node type instead of group/leaf.
-export function HierarchyNodeTreeEditor({ levels, nodes, onChange, token }: HierarchyNodeTreeEditorProps) {
+export function HierarchyNodeTreeEditor({ levels, nodes, onChange, token, disabled }: HierarchyNodeTreeEditorProps) {
   if (levels.length === 0) {
     return <p className="text-xs text-muted-foreground">Define at least one level above before adding values.</p>;
   }
@@ -113,12 +130,15 @@ export function HierarchyNodeTreeEditor({ levels, nodes, onChange, token }: Hier
           onChange={(updated) => onChange(nodes.map((n, i) => (i === index ? updated : n)))}
           onRemove={() => onChange(nodes.filter((_, i) => i !== index))}
           token={token}
+          disabled={disabled}
         />
       ))}
 
-      <Button type="button" size="sm" variant="outline" onClick={() => onChange([...nodes, emptyNode()])}>
-        <Plus /> Add {levels[0].englishName || "Value"}
-      </Button>
+      {!disabled && (
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange([...nodes, emptyNode()])}>
+          <Plus /> Add {levels[0].englishName || "Value"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -130,6 +150,7 @@ function HierarchyNodeRow({
   onChange,
   onRemove,
   token,
+  disabled,
 }: {
   node: LocalHierarchyNode;
   depth: number;
@@ -137,12 +158,13 @@ function HierarchyNodeRow({
   onChange: (node: LocalHierarchyNode) => void;
   onRemove: () => void;
   token: string | null | undefined;
+  disabled?: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(true);
   const canHaveChildren = depth + 1 < levels.length;
   const childLevelLabel = canHaveChildren ? levels[depth + 1]?.englishName : null;
 
-  const nameTranslate = useAutoTranslate({ sourceValue: node.englishName, onTargetChange: (v) => onChange({ ...node, tagalogName: v }), token });
+  const nameTranslate = useAutoTranslate({ sourceValue: node.englishName, onTargetChange: (v) => onChange({ ...node, tagalogName: v }), token, enabled: !disabled });
 
   return (
     <div className="rounded-lg border border-border" style={{ marginLeft: depth * 20 }}>
@@ -171,7 +193,7 @@ function HierarchyNodeRow({
           badge={nameTranslate.badge}
         />
 
-        {canHaveChildren && (
+        {canHaveChildren && !disabled && (
           <Button
             type="button"
             size="sm"
@@ -183,9 +205,11 @@ function HierarchyNodeRow({
           </Button>
         )}
 
-        <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
-          <Trash2 className="size-4" />
-        </Button>
+        {!disabled && (
+          <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+            <Trash2 className="size-4" />
+          </Button>
+        )}
       </div>
 
       {expanded && node.children.length > 0 && (
@@ -199,6 +223,7 @@ function HierarchyNodeRow({
               onChange={(updated) => onChange({ ...node, children: node.children.map((c, i) => (i === index ? updated : c)) })}
               onRemove={() => onChange({ ...node, children: node.children.filter((_, i) => i !== index) })}
               token={token}
+              disabled={disabled}
             />
           ))}
         </div>

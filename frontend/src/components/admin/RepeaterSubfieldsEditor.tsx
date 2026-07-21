@@ -169,8 +169,8 @@ function SubfieldRow({
   const isSelectType = inputType?.value === "SINGLE_SELECT" || inputType?.value === "MULTI_SELECT";
   const isHierarchyType = inputType?.value === "HIERARCHY_SELECT";
 
-  const nameTranslate = useAutoTranslate({ sourceValue: subfield.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
-  const descriptionTranslate = useAutoTranslate({ sourceValue: subfield.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token });
+  const nameTranslate = useAutoTranslate({ sourceValue: subfield.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token, enabled: !disabled });
+  const descriptionTranslate = useAutoTranslate({ sourceValue: subfield.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token, enabled: !disabled });
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: subfield.localId });
   const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
