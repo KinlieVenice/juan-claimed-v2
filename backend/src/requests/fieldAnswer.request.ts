@@ -27,3 +27,4 @@ export type SubmitFieldAnswersRequest = Request<{}, {}, SubmitFieldAnswersDto>;
 export type GetFieldAnswersRequest = Request;
 export type CreateAnswerGroupRequest = Request<{}, {}, CreateAnswerGroupDto>;
 export type GetAnswerGroupsRequest = Request<{ fieldId: string }>;
+export type DeleteAnswerGroupRequest = Request<{ groupId: string }>;

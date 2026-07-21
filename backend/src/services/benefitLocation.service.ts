@@ -1,5 +1,6 @@
 import { prisma, Prisma } from "../utils/prisma.js";
 import { getPsgcLocation } from "./psgc.service.js";
+import { derivePsgcAncestorPath } from "../utils/psgc.util.js";
 
 // Lets callers pass a `$transaction` callback client instead of the global
 // `prisma` singleton, so this DB work can be folded into a caller's
@@ -47,6 +48,29 @@ export const isUserAuthorizedForLocation = (user: any, location: any): boolean =
     default:
       throw new Error("UNAUTHORIZED_SCOPE: User scope configuration invalid.");
   }
+};
+
+/**
+ * The AGENT-side admin "Benefit" module only lists benefits relevant to the agent's own
+ * jurisdiction — the inverse direction of isUserAuthorizedForLocation above (that one asks
+ * "is this TARGET location within my authority to assign", this one asks "is MY OWN
+ * location within reach of any of this benefit's target locations"). Pure and
+ * network-free — derivePsgcAncestorPath (psgc.util.ts) derives the full ancestor chain
+ * straight from the PSGC code's own digit structure, no live PSGC API round-trip needed.
+ * A benefit with multiple, possibly-unrelated target locations (e.g. one covering
+ * "Laguna" AND "Cavite > Carmona") is visible as long as ANY one of them covers the agent
+ * — the others just don't apply to this particular agent.
+ */
+export const isBenefitVisibleToScope = (
+  benefit: { isNationwide: boolean; benefitPsgcCodes: { psgcCode: string }[] },
+  user: { scope?: { value: string } | null; psgcCode: string | null },
+): boolean => {
+  if (benefit.isNationwide) return true;
+  if (user.scope?.value === "NATIONAL" || user.scope?.value === "SUPERADMIN") return true;
+  if (!user.psgcCode) return false;
+
+  const ownAncestry = new Set(derivePsgcAncestorPath(user.psgcCode));
+  return benefit.benefitPsgcCodes.some((pc) => ownAncestry.has(pc.psgcCode));
 };
 
 export const getScopeIdMap = async (db: Db = prisma): Promise<Map<string, string>> => {

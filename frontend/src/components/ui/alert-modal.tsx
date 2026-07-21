@@ -38,6 +38,10 @@ const DEFAULT_TITLES: Record<AlertVariant, string> = {
 // shell around that text rather than another place to author copy.
 export function AlertModal({ open, onOpenChange, variant, title, message, size = "xs", confirmLabel = "Close", onConfirm }: AlertModalProps) {
   const { icon: Icon, iconClassName, badgeClassName } = VARIANT_CONFIG[variant];
+  // A short single-sentence message reads fine centered; a multi-line list (e.g. several
+  // validation issues, one per line) reads as a ragged, hard-to-scan center-aligned block —
+  // left-align just the message in that case, title/icon stay centered either way.
+  const isMultiline = message.includes("\n");
 
   return (
     <Modal
@@ -63,9 +67,12 @@ export function AlertModal({ open, onOpenChange, variant, title, message, size =
         <div className={cn("flex size-12 items-center justify-center rounded-full", badgeClassName)}>
           <Icon className={cn("size-6", iconClassName)} />
         </div>
-        <div className="space-y-1">
+        <div className={cn("space-y-1", isMultiline && "w-full")}>
           <p className="text-base font-semibold text-foreground">{title ?? DEFAULT_TITLES[variant]}</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
+          {/* whitespace-pre-line: a plain <p> collapses newlines by default — callers that
+              join multiple issues into one message (e.g. form validation) use "\n" to
+              separate them into a readable list instead of one run-on sentence. */}
+          <p className={cn("text-sm whitespace-pre-line text-muted-foreground", isMultiline && "text-left")}>{message}</p>
         </div>
       </div>
     </Modal>

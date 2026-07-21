@@ -36,10 +36,10 @@ export function AnsweredFormPage() {
   const handleChange = (fieldId: string, value: unknown) => submit([{ fieldId, value }]);
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
       <ApplyChrome />
 
-      <section className="mx-auto max-w-4xl px-4 py-12 md:px-5 md:py-16">
+      <section className="mx-auto w-full max-w-4xl flex-1 px-4 py-12 md:px-5 md:py-16">
         <div className="mx-auto max-w-3xl">
           <div className="mb-8 text-center">
             <span className="clay-blue inline-block px-3 py-1 text-[10px] font-bold tracking-[0.18em] text-[color:var(--color-ph-blue)] uppercase md:text-[11px]">

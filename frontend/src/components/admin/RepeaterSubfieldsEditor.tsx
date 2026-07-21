@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { FieldConfigForm } from "@/components/admin/FieldConfigForm";
 import { OptionsEditor, toOptionPayload, type LocalOption } from "@/components/admin/FieldOptionsEditor";
+import { useAutoTranslate } from "@/hooks/useAutoTranslate";
 import type { SubfieldInput } from "@/services/fields.service";
 import type { DimFieldHierarchy, DimFieldInputType } from "@/types/domain";
 
@@ -76,6 +77,11 @@ interface RepeaterSubfieldsEditorProps {
   onRemoveExistingOption: (subfieldId: string, optionId: string) => void;
   inputTypes: DimFieldInputType[];
   hierarchies: DimFieldHierarchy[];
+  /** Powers each row's English -> Tagalog auto-translate (see useAutoTranslate.ts). */
+  token: string | null | undefined;
+  /** View mode — hides Add/remove/drag-reorder chrome (see BenefitItemListEditor.tsx's
+   * identical prop). */
+  disabled?: boolean;
 }
 
 // A REPEATER_GROUP field's row-level children, authored inline — one level nested (a
@@ -84,7 +90,7 @@ interface RepeaterSubfieldsEditorProps {
 // per-type config, and (SELECT types) its own options — everything except classification
 // (inherited from the parent) and a dynamic show/hide condition (not supported on
 // subfields — see assertNoDynamicRuleGroupForSubfield backend-side).
-export function RepeaterSubfieldsEditor({ subfields, onChange, onRemoveExisting, onRemoveExistingOption, inputTypes, hierarchies }: RepeaterSubfieldsEditorProps) {
+export function RepeaterSubfieldsEditor({ subfields, onChange, onRemoveExisting, onRemoveExistingOption, inputTypes, hierarchies, token, disabled }: RepeaterSubfieldsEditorProps) {
   const subfieldInputTypes = inputTypes.filter((t) => t.value !== "REPEATER_GROUP");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -122,15 +128,19 @@ export function RepeaterSubfieldsEditor({ subfields, onChange, onRemoveExisting,
                 onChange={(patch) => updateSubfield(subfield.localId, patch)}
                 onRemove={() => removeSubfield(subfield)}
                 onRemoveExistingOption={(optionId) => subfield.id && onRemoveExistingOption(subfield.id, optionId)}
+                token={token}
+                disabled={disabled}
               />
             ))}
           </div>
         </SortableContext>
       </DndContext>
 
-      <Button type="button" size="sm" variant="outline" onClick={() => onChange([...subfields, emptySubfield(subfieldInputTypes[0]?.id ?? "")])}>
-        <Plus /> Add Subfield
-      </Button>
+      {!disabled && (
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange([...subfields, emptySubfield(subfieldInputTypes[0]?.id ?? "")])}>
+          <Plus /> Add Subfield
+        </Button>
+      )}
     </div>
   );
 }
@@ -142,6 +152,8 @@ function SubfieldRow({
   onChange,
   onRemove,
   onRemoveExistingOption,
+  token,
+  disabled,
 }: {
   subfield: LocalSubfield;
   inputTypes: DimFieldInputType[];
@@ -149,11 +161,16 @@ function SubfieldRow({
   onChange: (patch: Partial<LocalSubfield>) => void;
   onRemove: () => void;
   onRemoveExistingOption: (optionId: string) => void;
+  token: string | null | undefined;
+  disabled?: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(!subfield.id);
   const inputType = inputTypes.find((t) => t.id === subfield.fieldInputTypeId);
   const isSelectType = inputType?.value === "SINGLE_SELECT" || inputType?.value === "MULTI_SELECT";
   const isHierarchyType = inputType?.value === "HIERARCHY_SELECT";
+
+  const nameTranslate = useAutoTranslate({ sourceValue: subfield.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
+  const descriptionTranslate = useAutoTranslate({ sourceValue: subfield.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token });
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: subfield.localId });
   const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
@@ -161,9 +178,11 @@ function SubfieldRow({
   return (
     <div ref={setNodeRef} style={style} className={cn("rounded-lg border border-border bg-card", isDragging && "z-10 shadow-md")}>
       <div className="flex items-center gap-2 p-3">
-        <button type="button" className="cursor-grab text-muted-foreground touch-none" {...attributes} {...listeners}>
-          <GripVertical className="size-4" />
-        </button>
+        {!disabled && (
+          <button type="button" className="cursor-grab text-muted-foreground touch-none" {...attributes} {...listeners}>
+            <GripVertical className="size-4" />
+          </button>
+        )}
         <button type="button" onClick={() => setExpanded((e) => !e)} className="text-muted-foreground">
           {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
         </button>
@@ -171,20 +190,27 @@ function SubfieldRow({
           <p className="truncate text-sm font-medium text-foreground">{subfield.englishName || "Untitled subfield"}</p>
           <p className="truncate text-xs text-muted-foreground">{inputType?.englishName ?? "No type selected"}</p>
         </div>
-        <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
-          <Trash2 className="size-4" />
-        </Button>
+        {!disabled && (
+          <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+            <Trash2 className="size-4" />
+          </Button>
+        )}
       </div>
 
       {expanded && (
         <div className="space-y-4 border-t border-border p-3">
           <div className="grid grid-cols-2 gap-4">
             <TextField label="English Name" value={subfield.englishName} onChange={(v) => onChange({ englishName: v })} required />
-            <TextField label="Tagalog Name" value={subfield.tagalogName} onChange={(v) => onChange({ tagalogName: v })} required />
+            <TextField label="Tagalog Name" value={subfield.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <TextareaField label="English Description" value={subfield.englishDescription} onChange={(v) => onChange({ englishDescription: v })} />
-            <TextareaField label="Tagalog Description" value={subfield.tagalogDescription} onChange={(v) => onChange({ tagalogDescription: v })} />
+            <TextareaField
+              label="Tagalog Description"
+              value={subfield.tagalogDescription}
+              onChange={descriptionTranslate.handleTargetChange}
+              badge={descriptionTranslate.badge}
+            />
           </div>
 
           <SelectField
@@ -206,7 +232,7 @@ function SubfieldRow({
           {isSelectType && (
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-foreground">Options</Label>
-              <OptionsEditor options={subfield.options} onChange={(options) => onChange({ options })} onRemoveExisting={onRemoveExistingOption} />
+              <OptionsEditor options={subfield.options} onChange={(options) => onChange({ options })} onRemoveExisting={onRemoveExistingOption} token={token} disabled={disabled} />
             </div>
           )}
 

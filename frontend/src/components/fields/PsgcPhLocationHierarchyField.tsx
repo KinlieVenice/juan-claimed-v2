@@ -116,6 +116,21 @@ export function PsgcPhLocationHierarchyField({
   const [cityCode, setCityCode] = React.useState(value?.cityMunicipalityCode ?? "");
   const [barangayCode, setBarangayCode] = React.useState(value?.barangayCode ?? "");
 
+  // A hierarchy select is optional-or-complete, never half-answered: every handleXChange
+  // below only calls onChange(committedValue) once the deepest configured level is actually
+  // picked — reaching any shallower level alone calls onChange(null) instead (see
+  // handleRegionChange etc.). Deliberately checked against LOCAL level state, not the
+  // `value` prop: FieldInput.tsx's caller unwraps a completed pick down to just
+  // `v.barangayCode` (a bare string, matching how this field is actually stored) before it
+  // ever reaches the parent's form state, and then re-derives `psgcValue` as null next
+  // render since a plain string isn't a PsgcAddressValue object — so `value` goes back to
+  // null immediately after a genuinely complete pick. regionCode/.../barangayCode are this
+  // component's own state and don't round-trip through that collapse, so they're the only
+  // reliable signal here.
+  const deepestLocalCode = maxDepth >= LEVEL_DEPTH.barangay ? barangayCode : maxDepth === LEVEL_DEPTH.city ? cityCode : maxDepth === LEVEL_DEPTH.province ? subdivisionCode : regionCode;
+  const isPartial = !!regionCode && !deepestLocalCode;
+  const partialError = isPartial ? "Please finish selecting every level, or clear this field entirely." : undefined;
+
   const [regions, setRegions] = React.useState<PsgcRegion[]>([]);
   const [subdivisions, setSubdivisions] = React.useState<(PsgcProvince | PsgcDistrict)[]>([]);
   const [cities, setCities] = React.useState<PsgcCityMunicipality[]>([]);
@@ -362,7 +377,7 @@ export function PsgcPhLocationHierarchyField({
       hasValue
       required={required}
       disabled={disabled}
-      error={error}
+      error={error ?? partialError}
       hint={hint}
       badge={badge}
       className={containerClassName}

@@ -29,10 +29,7 @@ export function LoginPage() {
         <Separator className="flex-1" />
       </div>
 
-      <Link
-        to="/form"
-        className="clay block px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5"
-      >
+      <Link to="/form" className="block text-center text-sm font-semibold text-slate-500 underline-offset-4 hover:text-slate-700 hover:underline">
         Continue without signing in
       </Link>
 

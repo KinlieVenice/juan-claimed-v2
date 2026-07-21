@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
-import { Sun } from "@/components/apply/Sun";
 import { ClayCard } from "@/components/apply/ClayCard";
 
 const BENEFITS = [
@@ -12,22 +11,14 @@ const BENEFITS = [
 // Shared two-column shell for /login and /reset-password — the front door everyone walks
 // through (public users AND agency staff, via the collapsible sign-in inside LoginPage)
 // before ever reaching the serious admin dashboard shell, so it wears the same clay/PH-flag
-// "fun" skin as the rest of apply/*. Reuses Sun/ClayCard, the same wrapper components those
+// "fun" skin as the rest of apply/*. Reuses ClayCard, the same wrapper component those
 // pages already use — nothing here touches AdminLayout/Sidebar or any admin-only UI.
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="apply-bg min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center px-4 py-4 md:px-5 md:py-6">
-        <Link to="/" className="flex items-center gap-2 md:gap-3">
-          <div className="clay-yellow grid h-9 w-9 place-items-center md:h-11 md:w-11">
-            <div className="h-5 w-5 md:h-6 md:w-6">
-              <Sun />
-            </div>
-          </div>
-          <div className="leading-tight">
-            <p className="font-display text-lg font-black tracking-tight text-[color:var(--color-ph-blue)] md:text-xl">JuanClaimed</p>
-            <p className="text-[8px] tracking-[0.18em] text-slate-500 uppercase md:text-[10px]">Para sa bawat Juan</p>
-          </div>
+        <Link to="/" className="flex items-center">
+          <img src="/logo.png" alt="JuanClaimed" className="h-9 w-auto md:h-11" />
         </Link>
       </header>
 

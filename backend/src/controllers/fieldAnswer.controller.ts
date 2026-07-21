@@ -5,6 +5,7 @@ import type {
   GetFieldAnswersRequest,
   CreateAnswerGroupRequest,
   GetAnswerGroupsRequest,
+  DeleteAnswerGroupRequest,
 } from "../requests/fieldAnswer.request.js";
 
 const mapFieldAnswerError = (res: Response, error: any, message: string) => {
@@ -122,6 +123,34 @@ export const createAnswerGroup = async (req: CreateAnswerGroupRequest, res: Resp
     return res.status(500).json({
       success: false,
       message: "Could not create answer group.",
+      error: "An unexpected error occurred on the server.",
+      errorCode: "SERVER_ERROR",
+      data: null
+    });
+  }
+};
+
+// DELETE ANSWER GROUP (one repeater row, self only)
+export const deleteAnswerGroup = async (req: DeleteAnswerGroupRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    await fieldAnswerService.deleteAnswerGroup(userId, req.params.groupId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Row deleted successfully.",
+      error: null,
+      errorCode: null,
+      data: null
+    });
+  } catch (error: any) {
+    const mapped = mapFieldAnswerError(res, error, "Could not delete row.");
+    if (mapped) return mapped;
+
+    console.error("[FieldAnswerController] Error deleting answer group:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not delete row.",
       error: "An unexpected error occurred on the server.",
       errorCode: "SERVER_ERROR",
       data: null

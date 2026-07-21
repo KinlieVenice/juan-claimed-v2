@@ -61,21 +61,30 @@ export function FormPage() {
   };
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
       <ApplyChrome />
 
-      <section className="mx-auto max-w-4xl px-4 py-12 md:px-5 md:py-16">
+      <section className="mx-auto w-full max-w-4xl flex-1 px-4 py-12 md:px-5 md:py-16">
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">
             <span className="clay-blue inline-block px-3 py-1 text-[10px] font-bold tracking-[0.18em] text-[color:var(--color-ph-blue)] uppercase md:text-[11px]">
-              One quick quiz
+              {isGuest ? "Test quiz — not saved" : "One quick quiz"}
             </span>
             <h1 className="mt-4 font-display text-3xl leading-[1.05] font-black tracking-tight text-slate-900 md:text-4xl lg:text-5xl">
               Tell us about <span className="text-[color:var(--color-ph-red)]">yourself</span>
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-sm text-slate-600 md:text-base">
-              We'll use this info to find every benefit you qualify for — from national programs down to your barangay.
-              Fields marked with a badge are already synced from your eGovPH account.
+              {isGuest ? (
+                <>
+                  Just trying it out? This is a preview — since you're not logged in, nothing here gets saved. Log in first if you
+                  want your answers and eligibility results to actually stick.
+                </>
+              ) : (
+                <>
+                  We'll use this info to find every benefit you qualify for — from national programs down to your barangay. Fields
+                  marked with a badge are already synced from your eGovPH account.
+                </>
+              )}
             </p>
           </div>
 

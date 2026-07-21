@@ -141,8 +141,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = React.useCallback(() => {
-    window.localStorage.removeItem(TOKEN_KEY);
-    window.localStorage.removeItem(EGOV_PROFILE_KEY);
+    // Sweeps every "jc."-prefixed key (see lib/api.ts), not just TOKEN_KEY/EGOV_PROFILE_KEY —
+    // a logout should genuinely mean a clean slate, including leftover guest-answers data
+    // (jc.guest-answers) from before this browser ever had a real session, without this list
+    // having to be kept manually in sync with every key that gets added later.
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith("jc."))
+      .forEach((key) => window.localStorage.removeItem(key));
     setToken(null);
     setUser(null);
     setEgovProfile(null);

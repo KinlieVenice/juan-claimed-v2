@@ -184,8 +184,21 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
       <TextField
         label="Max rows"
         type="number"
+        min={1}
+        step={1}
         value={value.maxRows === undefined ? "" : String(value.maxRows)}
-        onChange={(v) => set({ maxRows: v === "" ? undefined : Number(v) })}
+        onChange={(v) => {
+          if (v === "") {
+            set({ maxRows: undefined });
+            return;
+          }
+          // Number("12-34") / Number("-5") both fail this the same way a stray "-"
+          // typed mid-string would — rejected outright rather than silently coerced,
+          // since a repeater's row cap can never be negative or malformed.
+          const parsed = Math.trunc(Number(v));
+          if (!Number.isFinite(parsed) || parsed < 1) return;
+          set({ maxRows: parsed });
+        }}
         hint="Leave blank for unlimited. Enforced server-side, not just a frontend hint."
       />
     );

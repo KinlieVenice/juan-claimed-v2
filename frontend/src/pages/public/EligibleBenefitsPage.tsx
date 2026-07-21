@@ -34,10 +34,10 @@ export function EligibleBenefitsPage() {
   const isLoading = results === null;
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
       <ApplyChrome />
 
-      <section className="mx-auto max-w-6xl px-4 py-12 md:px-5 md:py-16">
+      <section className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 md:px-5 md:py-16">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <span className="clay-yellow inline-block px-3 py-1 text-[10px] font-bold tracking-[0.18em] uppercase md:text-[11px]" style={{ color: "#8a6a00" }}>

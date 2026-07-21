@@ -4,14 +4,16 @@ import { ArrowLeft, ClipboardList, Lightbulb, Loader2, MapPin, ShieldCheck, Spar
 import { useAuth } from "@/lib/auth";
 import { getBenefitById } from "@/services/benefits.service";
 import { getMyBenefitEligibility, getGuestBenefitEligibility, type BenefitEligibilityDetail } from "@/services/eligibility.service";
-import { getFields } from "@/services/fields.service";
+import { getFields, getFieldConditionOperators } from "@/services/fields.service";
+import { getHierarchies } from "@/services/fieldHierarchy.service";
 import { useAnswers } from "@/lib/answers-store";
 import { renderableFields } from "@/lib/field-visibility";
-import type { FctBenefit, DimField } from "@/types/domain";
+import type { FctBenefit, DimField, DimFieldConditionOperator, DimFieldHierarchy } from "@/types/domain";
 import { formatBenefitScope } from "@/lib/benefit-scope";
 import { RequirementAccordion } from "@/components/benefits/RequirementAccordion";
 import { UtilizationAccordion } from "@/components/benefits/UtilizationAccordion";
 import { FieldForm } from "@/components/fields/FieldForm";
+import { ConditionTreeView } from "@/components/fields/ConditionTreeView";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
 import { ClayCard } from "@/components/apply/ClayCard";
 import { ConditionChecklist } from "@/components/apply/ConditionChecklist";
@@ -37,6 +39,13 @@ export function BenefitDetailsPage() {
   const [benefit, setBenefit] = React.useState<FctBenefit | null | undefined>(undefined);
   const [eligibility, setEligibility] = React.useState<BenefitEligibilityDetail | null>(null);
   const [pendingFields, setPendingFields] = React.useState<DimField[] | null>(null);
+  // For ConditionTreeView's read-only rendering of benefit.eligibilityTree — the raw
+  // AND/OR criteria, distinct from `eligibility` above (this applicant's live pass/fail
+  // checklist against it). Fetched once; guest-safe (getFieldConditionOperators/
+  // getHierarchies both fall back to their /public route with no token).
+  const [conditionFields, setConditionFields] = React.useState<DimField[]>([]);
+  const [operators, setOperators] = React.useState<DimFieldConditionOperator[]>([]);
+  const [hierarchies, setHierarchies] = React.useState<DimFieldHierarchy[]>([]);
   const [tab, setTab] = React.useState<(typeof TABS)[number]["id"]>("overview");
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [submitting, setSubmitting] = React.useState(false);
@@ -74,6 +83,12 @@ export function BenefitDetailsPage() {
     setDraft((prev) => ({ ...answersMap, ...prev }));
   }, [answersMap]);
 
+  React.useEffect(() => {
+    getFields(token ?? undefined).then(setConditionFields);
+    getFieldConditionOperators(undefined, token).then(setOperators);
+    getHierarchies(token).then(setHierarchies);
+  }, [token]);
+
   const handleAnswerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pendingFields) return;
@@ -90,16 +105,22 @@ export function BenefitDetailsPage() {
 
   if (benefit === undefined) {
     return (
-      <div className="apply-bg flex min-h-screen items-center justify-center text-sm text-slate-500">
-        <Loader2 className="mr-2 size-4 animate-spin" /> Loading…
+      <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
+        <ApplyChrome />
+        <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+          <Loader2 className="mr-2 size-4 animate-spin" /> Loading…
+        </div>
+        <ApplyFooter />
       </div>
     );
   }
 
   if (benefit === null) {
     return (
-      <div className="apply-bg flex min-h-screen items-center justify-center text-sm text-slate-500">
-        Benefit not found.
+      <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
+        <ApplyChrome />
+        <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Benefit not found.</div>
+        <ApplyFooter />
       </div>
     );
   }
@@ -112,10 +133,10 @@ export function BenefitDetailsPage() {
   ];
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
       <ApplyChrome />
 
-      <section className="mx-auto max-w-5xl px-4 py-8 md:px-5 md:py-12">
+      <section className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 md:px-5 md:py-12">
         <button
           onClick={() => navigate(-1)}
           className="clay mb-6 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-1"
@@ -196,6 +217,18 @@ export function BenefitDetailsPage() {
 
         {tab === "eligibility" && (
           <div className="space-y-6">
+            <ClayCard variant="plain" className="p-6 md:p-8">
+              <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">Eligibility criteria</h2>
+              <ConditionTreeView
+                tree={benefit.eligibilityTree}
+                treeKind="benefit"
+                fields={conditionFields}
+                operators={operators}
+                hierarchies={hierarchies}
+                emptyLabel="No extra eligibility conditions — residency is the only requirement."
+              />
+            </ClayCard>
+
             <ClayCard variant="plain" className="p-6 md:p-8">
               <h2 className="mb-4 font-display text-2xl font-bold text-slate-900">Where you stand</h2>
               {eligibility ? (

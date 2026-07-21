@@ -4,6 +4,7 @@ import {
   getMyFieldAnswers,
   createAnswerGroup,
   getMyAnswerGroups,
+  deleteAnswerGroup,
 } from "../controllers/fieldAnswer.controller.js";
 import { mockAuth } from "../middlewares/mockAuth.middleware.js";
 import { requireRole } from "../middlewares/role.middleware.js";
@@ -20,3 +21,4 @@ fieldAnswerRouter.put("/", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), valid
 
 fieldAnswerRouter.post("/groups", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), validateBody(createAnswerGroupSchema), createAnswerGroup);
 fieldAnswerRouter.get("/groups/:fieldId", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), getMyAnswerGroups);
+fieldAnswerRouter.delete("/groups/:groupId", mockAuth, requireRole(PERMISSIONS.PARTICIPATE), deleteAnswerGroup);

@@ -17,6 +17,7 @@ import { authRouter } from "./routes/auth.routes.js";
 import { attachmentUploadRouter } from "./routes/attachmentUpload.routes.js";
 import { benefitBundleRouter } from "./routes/benefitBundle.routes.js";
 import { fieldAnswerRouter } from "./routes/fieldAnswer.route.js";
+import { translateRouter } from "./routes/translate.routes.js";
 
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/scopes", scopeRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/attachments", attachmentUploadRouter);
 app.use("/api/benefit-bundles", benefitBundleRouter);
+app.use("/api/translate", translateRouter);
 
 
 app.use(errorHandler);

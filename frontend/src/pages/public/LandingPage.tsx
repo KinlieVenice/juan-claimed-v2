@@ -2,7 +2,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
-import { Sun } from "@/components/apply/Sun";
 import { ClayCard } from "@/components/apply/ClayCard";
 
 // Adapted from the co-dev's static marketing prototype (dev-feat-initial-KIN, commit
@@ -45,12 +44,13 @@ export function LandingPage() {
   const primaryLabel = isLoggedInUser ? "See your eligible benefits" : "Explore your benefits";
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden">
       <ApplyChrome />
 
-      <Hero primaryHref={primaryHref} primaryLabel={primaryLabel} onPrimary={() => navigate(primaryHref)} />
+      <main className="flex-1">
+        <Hero primaryHref={primaryHref} primaryLabel={primaryLabel} onPrimary={() => navigate(primaryHref)} />
 
-      <Marquee />
+        <Marquee />
 
       <section id="why" className="mx-auto max-w-6xl px-4 py-16 md:px-5 md:py-24">
         <div className="grid gap-8 md:grid-cols-2 md:gap-14">
@@ -201,7 +201,7 @@ export function LandingPage() {
 
         <div className="clay-yellow relative mt-12 overflow-hidden p-8 md:mt-16 md:p-10 lg:p-14">
           <div className="absolute -right-10 -top-10 h-32 w-32 opacity-40 md:h-40 md:w-40">
-            <Sun spin />
+            <img src="/logo.png" alt="" className="h-full w-full object-contain" />
           </div>
           <div className="relative flex flex-col items-start justify-between gap-4 md:flex-row md:items-center md:gap-6">
             <div>
@@ -222,6 +222,7 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+      </main>
 
       <ApplyFooter />
     </div>
@@ -233,7 +234,7 @@ function Hero({ primaryHref, primaryLabel, onPrimary }: { primaryHref: string; p
     <section className="relative mx-auto max-w-6xl px-4 pt-4 pb-20 md:px-5 md:pt-6 md:pb-28 lg:pt-14 lg:pb-36">
       <div className="pointer-events-none absolute right-2 top-0 -z-10 h-12 w-12 sm:h-16 sm:w-16 md:right-8 md:top-4 md:h-32 md:w-32 lg:h-44 lg:w-44">
         <div className="clay-yellow grid h-full w-full place-items-center p-3 md:p-4">
-          <Sun spin />
+          <img src="/logo.png" alt="JuanClaimed" className="h-full w-full object-contain" />
         </div>
       </div>
       <div className="pointer-events-none absolute -left-4 top-40 -z-10 hidden h-16 w-16 rotate-12 md:block">
@@ -306,8 +307,8 @@ function Hero({ primaryHref, primaryLabel, onPrimary }: { primaryHref: string; p
 function Marquee() {
   const items = [...SAMPLE_BENEFITS, ...SAMPLE_BENEFITS];
   return (
-    <div className="relative border-y border-slate-200/60 bg-white/40 py-3 backdrop-blur md:py-5">
-      <div className="flex gap-3 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)] md:gap-4">
+    <div className="relative border-y border-slate-200/60 bg-white/40 backdrop-blur">
+      <div className="flex py-3 md:py-5 gap-3 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)] md:gap-4">
         {[0, 1].map((row) => (
           <div key={row} aria-hidden={row === 1} className="flex shrink-0 animate-[marquee_38s_linear_infinite] gap-3 md:gap-4">
             {items.map((b, i) => (

@@ -357,3 +357,21 @@ export const fetchAnswerGroups = async (userId: string, repeaterFieldId: string)
     orderBy: { sortOrder: "asc" },
   });
 };
+
+// DELETE ANSWER GROUP — removes one row-instance (e.g. one dependent) and every subfield
+// answer filed against it. Answers are deleted explicitly, not left to an FK cascade
+// (FctUserFieldAnswer.repeaterGroupId has none) — same ownership check as
+// submitOneFieldAnswer's repeaterGroupId validation, so a crafted id can't delete another
+// user's row.
+export const deleteAnswerGroup = async (userId: string, groupId: string) => {
+  await prisma.$transaction(async (tx) => {
+    const group = await tx.fctUserFieldAnswerGroup.findUnique({ where: { id: groupId } });
+    if (!group || group.userId !== userId) {
+      console.error(`[FieldAnswerService] Answer group "${groupId}" does not exist for user "${userId}".`);
+      throw new Error("ANSWER_GROUP_NOT_FOUND");
+    }
+
+    await tx.fctUserFieldAnswer.deleteMany({ where: { repeaterGroupId: groupId } });
+    await tx.fctUserFieldAnswerGroup.delete({ where: { id: groupId } });
+  });
+};

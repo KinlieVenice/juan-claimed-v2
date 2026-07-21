@@ -3,6 +3,8 @@ import { Loader2, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useAlert } from "@/lib/alert-store";
+import { useAutoTranslate } from "@/hooks/useAutoTranslate";
+import { isConditionValueFilled, isFieldConditionTreeComplete } from "@/lib/conditionCompleteness";
 import {
   createField,
   updateField,
@@ -22,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SidePanel } from "@/components/ui/side-panel";
 import { FieldConfigForm } from "@/components/admin/FieldConfigForm";
 import { FieldConditionTreeBuilder } from "@/components/admin/FieldConditionTreeBuilder";
+import { ConditionTreeView } from "@/components/fields/ConditionTreeView";
 import {
   HierarchyLevelsEditor,
   HierarchyNodeTreeEditor,
@@ -84,10 +87,14 @@ function collectDependencyFieldIds(node: FieldRuleTreeNode): Set<string> {
 const NO_ANCHOR = "__none__";
 
 export function FieldFormModal({ open, onOpenChange, field, viewOnly, classification: defaultClassification, allFields, inputTypes, operators, hierarchies, onSaved }: FieldFormModalProps) {
-  const { token, role } = useAuth();
+  const { token } = useAuth();
   const { showAlert, showApiError } = useAlert();
   const isEgov = field?.eGovField === true;
-  const canPickGlobal = role === "SUPERADMIN";
+  // Global fields are eGovPH-synced/locked and shipped once at seed time — nobody, not even
+  // Superadmin, may author a new one (see requireFieldClassificationRole.middleware.ts,
+  // enforced there too, not just hidden here). Only an already-existing Global field (being
+  // viewed/edited) still shows as Global; every new field is Follow-Up.
+  const isExistingGlobal = field?.classification === "GLOBAL";
 
   const [englishName, setEnglishName] = React.useState("");
   const [tagalogName, setTagalogName] = React.useState("");
@@ -116,6 +123,20 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
   const [deletedAnchoredChildIds, setDeletedAnchoredChildIds] = React.useState<string[]>([]);
   const [deletedAnchoredChildOptionIds, setDeletedAnchoredChildOptionIds] = React.useState<{ childId: string; optionId: string }[]>([]);
   const [submitting, setSubmitting] = React.useState(false);
+
+  // Auto-fills each Tagalog field from its English counterpart as the configurer types (see
+  // useAutoTranslate.ts) — disabled once eGov-locked (name) or in view mode. Descriptions
+  // aren't eGov-locked (only name/classification are, per the badge above), so only viewOnly
+  // gates those.
+  const nameTranslate = useAutoTranslate({ sourceValue: englishName, onTargetChange: setTagalogName, token, enabled: !isEgov && !viewOnly });
+  const descriptionTranslate = useAutoTranslate({ sourceValue: englishDescription, onTargetChange: setTagalogDescription, token, enabled: !viewOnly });
+  const newHierarchyNameTranslate = useAutoTranslate({ sourceValue: newHierarchyEnglishName, onTargetChange: setNewHierarchyTagalogName, token, enabled: !viewOnly });
+  const newHierarchyDescriptionTranslate = useAutoTranslate({
+    sourceValue: newHierarchyEnglishDescription,
+    onTargetChange: setNewHierarchyTagalogDescription,
+    token,
+    enabled: !viewOnly,
+  });
 
   // The condition tree is a SHARED row set — a benefit's eligibility rule can reference
   // one of its leaves directly by id (DimBenefitFieldCondition.benefitFieldConditionId).
@@ -161,7 +182,9 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
       setTagalogName("");
       setEnglishDescription("");
       setTagalogDescription("");
-      setClassification(role === "AGENT" ? "FOLLOW_UP" : defaultClassification);
+      // Always Follow-Up on create, regardless of which tab "Add Field" was clicked from —
+      // Global can no longer be authored by anyone (see isExistingGlobal above).
+      setClassification("FOLLOW_UP");
       setFieldInputTypeId(inputTypes[0]?.id ?? "");
       setRequired(true);
       setConfigJson({});
@@ -184,7 +207,7 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
       setDeletedAnchoredChildIds([]);
       setDeletedAnchoredChildOptionIds([]);
     }
-  }, [open, field, defaultClassification, role, inputTypes]);
+  }, [open, field, inputTypes]);
 
   // getFields (list view) doesn't embed options/subfields — only the single-field GET
   // does — so both are fetched separately, in one call, when the form opens for editing.
@@ -286,8 +309,15 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
     () =>
       allFields
         .filter((f) => referencedFieldIds.has(f.id))
+        // A Parent Dependents CONDITION may still reference a Global field (e.g. "if
+        // Occupation = Others, show this") — but "Anchor to" (pinning render position under
+        // it) is a different, stronger relationship that used to also silently convert this
+        // field's own classification to match its target's (see resolveAnchor in
+        // field.service.ts). That backdoor is now closed server-side too, so a Global target
+        // is never offered here for anything that isn't itself already Global.
+        .filter((f) => isExistingGlobal || f.classification !== "GLOBAL")
         .map((f) => ({ value: f.id, label: f.englishName, sublabel: f.tagalogName })),
-    [allFields, referencedFieldIds],
+    [allFields, referencedFieldIds, isExistingGlobal],
   );
 
   // Mirrors the backend's auto-detach: if the anchored field gets removed from this
@@ -337,9 +367,93 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
     setDeletedSubfieldOptionIds([]);
   };
 
+  // Every array-backed sub-editor here (options, hierarchy levels/values, subfields,
+  // anchored children, condition trees) has no native HTML `required` to lean on — unlike
+  // the plain TextFields above, an empty array or a half-picked condition submits silently
+  // otherwise. Checked once, right before save, so every violation surfaces together in one
+  // alert instead of the admin discovering them one save-attempt at a time.
+  const validateBeforeSubmit = (): string[] => {
+    const errors: string[] = [];
+
+    // Native `required` alone isn't reliable here — Radix Tabs unmounts inactive
+    // TabsContent by default, so switching off "Basic Info" before saving removes these
+    // inputs from the DOM entirely, and a removed input can't block form submission no
+    // matter how empty it is. Checked explicitly instead of trusting the browser.
+    if (!englishName.trim()) errors.push("Enter an English Name.");
+    if (!tagalogName.trim()) errors.push("Enter a Tagalog Name.");
+    if (!englishDescription.trim()) errors.push("Enter an English Description.");
+    if (!tagalogDescription.trim()) errors.push("Enter a Tagalog Description.");
+    if (!fieldInputTypeId) errors.push("Select an input type.");
+
+    if (isSelectType && options.length === 0) {
+      errors.push("Add at least one option for this Single/Multi Select field.");
+    }
+
+    if (isHierarchyType) {
+      if (hierarchyMode === "new") {
+        if (!newHierarchyEnglishName.trim()) errors.push("Enter an English Name for the new hierarchy.");
+        if (!newHierarchyTagalogName.trim()) errors.push("Enter a Tagalog Name for the new hierarchy.");
+        if (hierarchyLevels.length === 0) errors.push("Add at least one hierarchy level.");
+        if (hierarchyNodes.length === 0) errors.push("Add at least one value for the first hierarchy level.");
+      } else if (!fieldHierarchyId) {
+        errors.push("Select an existing hierarchy for this field.");
+      }
+    }
+
+    if (isRepeaterType && subfields.length === 0) {
+      errors.push("Add at least one subfield for this Repeater Group.");
+    }
+
+    subfields.forEach((s, index) => {
+      const subInputType = inputTypes.find((t) => t.id === s.fieldInputTypeId);
+      const label = s.englishName || `Subfield ${index + 1}`;
+      if (!s.englishName.trim()) errors.push(`Enter an English Name for subfield ${index + 1}.`);
+      if (!s.tagalogName.trim()) errors.push(`Enter a Tagalog Name for subfield "${label}".`);
+      if ((subInputType?.value === "SINGLE_SELECT" || subInputType?.value === "MULTI_SELECT") && s.options.length === 0) {
+        errors.push(`Add at least one option for subfield "${label}".`);
+      }
+      if (subInputType?.value === "HIERARCHY_SELECT" && !s.fieldHierarchyId) {
+        errors.push(`Select a hierarchy for subfield "${label}".`);
+      }
+    });
+
+    anchoredChildren.forEach((c, index) => {
+      const childInputType = inputTypes.find((t) => t.id === c.fieldInputTypeId);
+      const label = c.englishName || `Conditional child ${index + 1}`;
+      if (!c.englishName.trim()) errors.push(`Enter an English Name for conditional child ${index + 1}.`);
+      if (!c.tagalogName.trim()) errors.push(`Enter a Tagalog Name for "${label}".`);
+      if ((childInputType?.value === "SINGLE_SELECT" || childInputType?.value === "MULTI_SELECT") && c.options.length === 0) {
+        errors.push(`Add at least one option for "${label}".`);
+      }
+      if (childInputType?.value === "HIERARCHY_SELECT" && !c.fieldHierarchyId) {
+        errors.push(`Select a hierarchy for "${label}".`);
+      }
+      if (!c.triggerOperatorId) {
+        errors.push(`Select a trigger condition for "${label}".`);
+      } else {
+        const triggerOperatorValue = operators.find((o) => o.id === c.triggerOperatorId)?.value ?? "";
+        if (!isConditionValueFilled(triggerOperatorValue, c.triggerValue)) {
+          errors.push(`Set a trigger value for "${label}".`);
+        }
+      }
+    });
+
+    if (!isFieldConditionTreeComplete(dynamicCondition)) {
+      errors.push("Every condition under Parent Dependents needs a field, operator, and value — finish or remove any incomplete ones.");
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
+
+    const validationErrors = validateBeforeSubmit();
+    if (validationErrors.length > 0) {
+      showAlert({ variant: "error", title: "Can't save this field yet", message: validationErrors.map((e) => `• ${e}`).join("\n"), size: "sm" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -498,8 +612,11 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
         // attribute makes every nested control genuinely unfocusable/unclickable, instead of
         // threading a `disabled` prop through every nested editor by hand. Text stays
         // selectable (no pointer-events/select-none) since the whole point is to still read it.
+        // Applied per-TabsContent below, not on this <form> — inert-ing the whole form also
+        // swallowed the TabsList/TabsTrigger buttons nested inside it (same subtree, no CSS
+        // escape hatch), making tabs unclickable in view mode. See FieldForm.tsx's identical
+        // "push inert down to what's actually meant to be locked" fix for the same class of bug.
         className={cn(viewOnly && "opacity-90")}
-        inert={viewOnly || undefined}
       >
         {isEgov && (
           <div className="mb-6 flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
@@ -547,25 +664,25 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
             </TabsList>
           </div>
 
-          <TabsContent value="basic" className="space-y-6 pt-4">
+          <TabsContent value="basic" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <TextField label="English Name" value={englishName} onChange={setEnglishName} required disabled={isEgov} />
             <TextareaField label="English Description" value={englishDescription} onChange={setEnglishDescription} required />
-            <TextField label="Tagalog Name" value={tagalogName} onChange={setTagalogName} required disabled={isEgov} />
-            <TextareaField label="Tagalog Description" value={tagalogDescription} onChange={setTagalogDescription} required />
+            <TextField label="Tagalog Name" value={tagalogName} onChange={nameTranslate.handleTargetChange} required disabled={isEgov} badge={nameTranslate.badge} />
+            <TextareaField
+              label="Tagalog Description"
+              value={tagalogDescription}
+              onChange={descriptionTranslate.handleTargetChange}
+              required
+              badge={descriptionTranslate.badge}
+            />
 
             <SelectField
               label="Classification"
               value={classification}
               onChange={(v) => setClassification(v as FieldClassification)}
-              disabled={isEgov || !canPickGlobal}
-              options={
-                canPickGlobal
-                  ? [
-                      { value: "GLOBAL", label: "Global" },
-                      { value: "FOLLOW_UP", label: "Follow-Up" },
-                    ]
-                  : [{ value: "FOLLOW_UP", label: "Follow-Up" }]
-              }
+              disabled
+              options={isExistingGlobal ? [{ value: "GLOBAL", label: "Global" }] : [{ value: "FOLLOW_UP", label: "Follow-Up" }]}
+              hint={isExistingGlobal ? "Synced from eGovPH — can't be changed." : "New fields are always Follow-Up — Global is eGovPH-synced and locked."}
             />
 
             <SelectField
@@ -584,7 +701,7 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
           </TabsContent>
 
           {inputType && (
-            <TabsContent value="configuration" className="space-y-6 pt-4">
+            <TabsContent value="configuration" className="space-y-6 pt-4" inert={viewOnly || undefined}>
               <FieldConfigForm inputTypeValue={inputType.value} value={configJson} onChange={setConfigJson} />
 
               {isHierarchyType && (
@@ -610,21 +727,32 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <TextField label="English Name" value={newHierarchyEnglishName} onChange={setNewHierarchyEnglishName} required />
-                        <TextField label="Tagalog Name" value={newHierarchyTagalogName} onChange={setNewHierarchyTagalogName} required />
+                        <TextField
+                          label="Tagalog Name"
+                          value={newHierarchyTagalogName}
+                          onChange={newHierarchyNameTranslate.handleTargetChange}
+                          required
+                          badge={newHierarchyNameTranslate.badge}
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <TextareaField label="English Description" value={newHierarchyEnglishDescription} onChange={setNewHierarchyEnglishDescription} />
-                        <TextareaField label="Tagalog Description" value={newHierarchyTagalogDescription} onChange={setNewHierarchyTagalogDescription} />
+                        <TextareaField
+                          label="Tagalog Description"
+                          value={newHierarchyTagalogDescription}
+                          onChange={newHierarchyDescriptionTranslate.handleTargetChange}
+                          badge={newHierarchyDescriptionTranslate.badge}
+                        />
                       </div>
 
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-foreground">Levels</Label>
-                        <HierarchyLevelsEditor levels={hierarchyLevels} onChange={setHierarchyLevels} />
+                        <HierarchyLevelsEditor levels={hierarchyLevels} onChange={setHierarchyLevels} token={token} />
                       </div>
 
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-foreground">Values</Label>
-                        <HierarchyNodeTreeEditor levels={hierarchyLevels} nodes={hierarchyNodes} onChange={setHierarchyNodes} />
+                        <HierarchyNodeTreeEditor levels={hierarchyLevels} nodes={hierarchyNodes} onChange={setHierarchyNodes} token={token} />
                       </div>
                     </div>
                   )}
@@ -634,17 +762,19 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
           )}
 
           {isSelectType && (
-            <TabsContent value="options" className="space-y-6 pt-4">
+            <TabsContent value="options" className="space-y-6 pt-4" inert={viewOnly || undefined}>
               <OptionsEditor
                 options={options}
                 onChange={setOptions}
                 onRemoveExisting={(id) => setDeletedOptionIds((prev) => [...prev, id])}
+                token={token}
+                disabled={viewOnly}
               />
             </TabsContent>
           )}
 
           {isRepeaterType && (
-            <TabsContent value="subfields" className="space-y-6 pt-4">
+            <TabsContent value="subfields" className="space-y-6 pt-4" inert={viewOnly || undefined}>
               <p className="text-xs text-muted-foreground">
                 Each row of this repeater group is made up of these subfields — one level nested, each with its own type and configuration.
               </p>
@@ -655,17 +785,31 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
                 onRemoveExistingOption={(subfieldId, optionId) => setDeletedSubfieldOptionIds((prev) => [...prev, { subfieldId, optionId }])}
                 inputTypes={inputTypes}
                 hierarchies={hierarchies}
+                token={token}
+                disabled={viewOnly}
               />
             </TabsContent>
           )}
 
-          <TabsContent value="parentDependents" className="space-y-6 pt-4">
+          <TabsContent value="parentDependents" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <p className="text-xs text-muted-foreground">
               Which other fields this field depends on — {classification === "GLOBAL"
                 ? "a Global field can only depend on another Global field's answer."
                 : "a Follow-Up field can depend on a Global or Follow-Up field's answer."}
             </p>
-            <FieldConditionTreeBuilder dependencyFields={dependencyFields} operators={operators} hierarchies={hierarchies} tree={dynamicCondition} onChange={setDynamicCondition} />
+            {viewOnly ? (
+              <ConditionTreeView
+                tree={dynamicCondition}
+                treeKind="field"
+                fields={dependencyFields}
+                operators={operators}
+                hierarchies={hierarchies}
+                selfField={field ?? undefined}
+                emptyLabel="Always visible — no conditions set."
+              />
+            ) : (
+              <FieldConditionTreeBuilder dependencyFields={dependencyFields} operators={operators} hierarchies={hierarchies} tree={dynamicCondition} onChange={setDynamicCondition} />
+            )}
 
             {anchorOptions.length > 0 && (
               <SelectField
@@ -679,7 +823,7 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
           </TabsContent>
 
           {!isRepeaterType && childrenParentField && (
-            <TabsContent value="childrenDependents" className="space-y-6 pt-4">
+            <TabsContent value="childrenDependents" className="space-y-6 pt-4" inert={viewOnly || undefined}>
               <p className="text-xs text-muted-foreground">
                 Fields that pop up right under this one when a condition on THIS field is met (e.g. a "Other Occupation" text field when this equals "Others") — built and anchored
                 here in one step, instead of authoring the dependency from the child's own edit screen. Works while creating this field too — a trigger can reference one of the
@@ -695,6 +839,8 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
                 operators={operators}
                 inputTypes={inputTypes}
                 hierarchies={hierarchies}
+                token={token}
+                disabled={viewOnly}
               />
             </TabsContent>
           )}

@@ -3,6 +3,8 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useAlert } from "@/lib/alert-store";
+import { useAutoTranslate } from "@/hooks/useAutoTranslate";
+import { isBenefitRuleTreeComplete } from "@/lib/conditionCompleteness";
 import {
   createBenefitBundle,
   updateBenefitBundle,
@@ -23,6 +25,7 @@ import { TextField, TextareaField } from "@/components/ui/text-field";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RuleTreeBuilder } from "@/components/benefits/RuleTreeBuilder";
+import { ConditionTreeView } from "@/components/fields/ConditionTreeView";
 import { BenefitScopeFields } from "@/components/benefits/BenefitScopeFields";
 import { BenefitItemListEditor, stripBenefitItems, type LocalBenefitItem } from "@/components/benefits/BenefitItemListEditor";
 import type { LocalAttachment } from "@/components/benefits/AttachmentUploader";
@@ -116,6 +119,8 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
 
   const [submitting, setSubmitting] = React.useState(false);
 
+  const descriptionTranslate = useAutoTranslate({ sourceValue: englishDescription, onTargetChange: setTagalogDescription, token, enabled: !viewOnly });
+
   React.useEffect(() => {
     if (!open) return;
     if (benefit) {
@@ -202,6 +207,42 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
     e.preventDefault();
     if (!token) return;
 
+    // Native `required` alone isn't reliable here — this form lives inside Radix Tabs,
+    // which unmounts inactive TabsContent by default, so switching off "Basic Info" (or a
+    // Requirement/Utilization/How-to-Apply row being collapsed) removes those inputs from
+    // the DOM entirely, and a removed input can't block submission. Checked explicitly,
+    // same as FieldFormModal.tsx's validateBeforeSubmit.
+    const validationErrors: string[] = [];
+    if (!name.trim()) validationErrors.push("Enter a Name.");
+    if (!englishDescription.trim()) validationErrors.push("Enter an English Description.");
+    if (!tagalogDescription.trim()) validationErrors.push("Enter a Tagalog Description.");
+
+    const validateItems = (items: LocalBenefitItem[], label: string) => {
+      items.forEach((item, index) => {
+        const itemLabel = item.englishName || `${label} ${index + 1}`;
+        if (!item.englishName.trim()) validationErrors.push(`Enter an English Name for ${label} ${index + 1}.`);
+        if (!item.tagalogName.trim()) validationErrors.push(`Enter a Tagalog Name for "${itemLabel}".`);
+        if (!item.englishDescription.trim()) validationErrors.push(`Enter an English Description for "${itemLabel}".`);
+        if (!item.tagalogDescription.trim()) validationErrors.push(`Enter a Tagalog Description for "${itemLabel}".`);
+      });
+    };
+    validateItems(requirements, "Requirement");
+    validateItems(utilizations, "Utilization");
+    validateItems(howToApplies, "How to Apply step");
+
+    // Same "no HTML `required` to lean on for a condition tree" reasoning as
+    // FieldFormModal.tsx's validateBeforeSubmit — an eligibility condition with a field
+    // picked but no operator/value set (or an empty nested "Add Group") would otherwise
+    // submit silently.
+    if (!isBenefitRuleTreeComplete(eligibilityTree, operators)) {
+      validationErrors.push("Every condition under Eligibility needs a field, operator, and value — finish or remove any incomplete ones.");
+    }
+
+    if (validationErrors.length > 0) {
+      showAlert({ variant: "error", title: "Can't save this benefit yet", message: validationErrors.map((e) => `• ${e}`).join("\n"), size: "sm" });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const strippedTree = stripTreeIds(eligibilityTree) as EligibilityTreeInput;
@@ -269,7 +310,7 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
         )
       }
     >
-      <form id={FORM_ID} onSubmit={handleSubmit} className={cn(viewOnly && "opacity-90")} inert={viewOnly || undefined}>
+      <form id={FORM_ID} onSubmit={handleSubmit} className={cn(viewOnly && "opacity-90")}>
         <Tabs defaultValue="basic">
           {/* Horizontally-scrollable tab strip — six tabs is more than a fixed-width row
               fits comfortably, so this scrolls as a unit instead of wrapping/squishing.
@@ -298,10 +339,16 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
             </TabsList>
           </div>
 
-          <TabsContent value="basic" className="space-y-6 pt-4">
+          <TabsContent value="basic" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <TextField label="Name" value={name} onChange={setName} required />
             <TextareaField label="English Description" value={englishDescription} onChange={setEnglishDescription} required />
-            <TextareaField label="Tagalog Description" value={tagalogDescription} onChange={setTagalogDescription} required />
+            <TextareaField
+              label="Tagalog Description"
+              value={tagalogDescription}
+              onChange={descriptionTranslate.handleTargetChange}
+              required
+              badge={descriptionTranslate.badge}
+            />
           </TabsContent>
 
           {/* forceMount — unlike the other tabs, this one hosts a picker with meaningful
@@ -310,7 +357,7 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
               back would otherwise reset that mid-drill-down state on every visit. Committed
               picks (psgcCodes) are already safe either way — this only preserves the picker's
               own tree-expansion UI. */}
-          <TabsContent value="scope" forceMount className="space-y-6 pt-4 data-[state=inactive]:hidden">
+          <TabsContent value="scope" forceMount className="space-y-6 pt-4 data-[state=inactive]:hidden" inert={viewOnly || undefined}>
             <BenefitScopeFields
               isNationwide={isNationwide}
               onNationwideChange={setIsNationwide}
@@ -325,7 +372,7 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
             />
           </TabsContent>
 
-          <TabsContent value="requirements" className="space-y-6 pt-4">
+          <TabsContent value="requirements" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <p className="text-xs text-muted-foreground">Optional — documents an applicant needs to provide.</p>
             <BenefitItemListEditor
               items={requirements}
@@ -334,10 +381,12 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
               onRemoveExistingAttachment={(itemId, attachmentId) => setDeletedRequirementAttachmentIds((prev) => [...prev, { itemId, attachmentId }])}
               addLabel="Add Requirement"
               emptyHint="No requirements yet — add one below (e.g. a Senior Citizen ID)."
+              token={token}
+              disabled={viewOnly}
             />
           </TabsContent>
 
-          <TabsContent value="utilization" className="space-y-6 pt-4">
+          <TabsContent value="utilization" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <p className="text-xs text-muted-foreground">Optional — tips for making the most of this benefit once granted.</p>
             <BenefitItemListEditor
               items={utilizations}
@@ -346,10 +395,12 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
               onRemoveExistingAttachment={(itemId, attachmentId) => setDeletedUtilizationAttachmentIds((prev) => [...prev, { itemId, attachmentId }])}
               addLabel="Add Utilization Tip"
               emptyHint="No utilization tips yet — add one below."
+              token={token}
+              disabled={viewOnly}
             />
           </TabsContent>
 
-          <TabsContent value="howToApply" className="space-y-6 pt-4">
+          <TabsContent value="howToApply" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <p className="text-xs text-muted-foreground">Optional — step-by-step application instructions.</p>
             <BenefitItemListEditor
               items={howToApplies}
@@ -358,10 +409,12 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
               onRemoveExistingAttachment={(itemId, attachmentId) => setDeletedHowToApplyAttachmentIds((prev) => [...prev, { itemId, attachmentId }])}
               addLabel="Add Step"
               emptyHint="No application steps yet — add one below."
+              token={token}
+              disabled={viewOnly}
             />
           </TabsContent>
 
-          <TabsContent value="eligibility" className="space-y-6 pt-4">
+          <TabsContent value="eligibility" className="space-y-6 pt-4" inert={viewOnly || undefined}>
             <div className="space-y-1.5 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
               <p className="text-xs font-semibold text-foreground">Residency</p>
               {isNationwide ? (
@@ -386,7 +439,18 @@ export function BenefitFormModal({ open, onOpenChange, benefit, viewOnly, onSave
             </div>
 
             <p className="text-xs text-muted-foreground">Optional — the AND/OR condition tree that determines who qualifies.</p>
-            <RuleTreeBuilder fields={topLevelFields} operators={operators} hierarchies={hierarchies} tree={eligibilityTree} onChange={setEligibilityTree} />
+            {viewOnly ? (
+              <ConditionTreeView
+                tree={eligibilityTree}
+                treeKind="benefit"
+                fields={topLevelFields}
+                operators={operators}
+                hierarchies={hierarchies}
+                emptyLabel="No eligibility conditions set — residency above is the only requirement."
+              />
+            ) : (
+              <RuleTreeBuilder fields={topLevelFields} operators={operators} hierarchies={hierarchies} tree={eligibilityTree} onChange={setEligibilityTree} />
+            )}
           </TabsContent>
         </Tabs>
       </form>

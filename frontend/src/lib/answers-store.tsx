@@ -3,6 +3,7 @@ import * as answersService from "@/services/answers.service";
 import type { SubmitFieldAnswerInput } from "@/services/answers.service";
 import type { UserFieldAnswer, UserFieldAnswerGroup } from "@/types/domain";
 import { useAuth } from "@/lib/auth";
+import { GUEST_ANSWERS_KEY } from "@/lib/api";
 
 interface AnswersContextValue {
   answers: UserFieldAnswer[];
@@ -16,6 +17,7 @@ interface AnswersContextValue {
   repeaterRowsMap: Record<string, Array<Record<string, unknown>>>;
   submit: (items: SubmitFieldAnswerInput[]) => Promise<void>;
   addAnswerGroup: (fieldId: string) => Promise<UserFieldAnswerGroup>;
+  deleteAnswerGroup: (groupId: string) => Promise<void>;
   refetchGroups: (fieldId: string) => Promise<void>;
   /** True for a signed-out visitor ("Explore your benefits" with no account) — answers
    * live only in this browser's localStorage and are never sent to the backend, matching
@@ -29,8 +31,6 @@ interface AnswersContextValue {
 
 const AnswersContext = React.createContext<AnswersContextValue | null>(null);
 
-const GUEST_STORAGE_KEY = "jc.guest-answers";
-
 interface GuestState {
   answers: UserFieldAnswer[];
   groups: UserFieldAnswerGroup[];
@@ -39,7 +39,7 @@ interface GuestState {
 function readGuestState(): GuestState {
   if (typeof window === "undefined") return { answers: [], groups: [] };
   try {
-    const raw = window.localStorage.getItem(GUEST_STORAGE_KEY);
+    const raw = window.localStorage.getItem(GUEST_ANSWERS_KEY);
     if (!raw) return { answers: [], groups: [] };
     const parsed = JSON.parse(raw) as Partial<GuestState>;
     return { answers: parsed.answers ?? [], groups: parsed.groups ?? [] };
@@ -50,7 +50,7 @@ function readGuestState(): GuestState {
 
 function writeGuestState(state: GuestState) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(state));
+  window.localStorage.setItem(GUEST_ANSWERS_KEY, JSON.stringify(state));
 }
 
 let guestSeq = 0;
@@ -133,6 +133,23 @@ export function AnswersProvider({ children }: { children: React.ReactNode }) {
     [isGuest, token, groups, answers],
   );
 
+  const deleteAnswerGroup = React.useCallback(
+    async (groupId: string) => {
+      if (isGuest) {
+        const nextGroups = groups.filter((g) => g.id !== groupId);
+        const nextAnswers = answers.filter((a) => a.repeaterGroupId !== groupId);
+        setGroups(nextGroups);
+        setAnswers(nextAnswers);
+        writeGuestState({ answers: nextAnswers, groups: nextGroups });
+        return;
+      }
+      await answersService.deleteAnswerGroup(groupId, token ?? undefined);
+      setGroups((prev) => prev.filter((g) => g.id !== groupId));
+      setAnswers((prev) => prev.filter((a) => a.repeaterGroupId !== groupId));
+    },
+    [isGuest, token, groups, answers],
+  );
+
   const refetchGroups = React.useCallback(
     async (fieldId: string) => {
       if (isGuest) return; // guest groups already live entirely in local state
@@ -170,8 +187,20 @@ export function AnswersProvider({ children }: { children: React.ReactNode }) {
   }, [answers, groups]);
 
   const value = React.useMemo(
-    () => ({ answers, groups, loading, answersMap, repeaterRowsMap, submit, addAnswerGroup, refetchGroups, isGuest, resetGuestAnswers }),
-    [answers, groups, loading, answersMap, repeaterRowsMap, submit, addAnswerGroup, refetchGroups, isGuest, resetGuestAnswers],
+    () => ({
+      answers,
+      groups,
+      loading,
+      answersMap,
+      repeaterRowsMap,
+      submit,
+      addAnswerGroup,
+      deleteAnswerGroup,
+      refetchGroups,
+      isGuest,
+      resetGuestAnswers,
+    }),
+    [answers, groups, loading, answersMap, repeaterRowsMap, submit, addAnswerGroup, deleteAnswerGroup, refetchGroups, isGuest, resetGuestAnswers],
   );
 
   return <AnswersContext.Provider value={value}>{children}</AnswersContext.Provider>;

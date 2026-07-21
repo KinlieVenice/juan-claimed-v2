@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { FieldConfigForm } from "@/components/admin/FieldConfigForm";
 import { OptionsEditor, toOptionPayload, type LocalOption } from "@/components/admin/FieldOptionsEditor";
+import { useAutoTranslate } from "@/hooks/useAutoTranslate";
 import type { AnchoredChildInput } from "@/services/fields.service";
 import type { DimField, DimFieldConditionOperator, DimFieldHierarchy, DimFieldInputType } from "@/types/domain";
 
@@ -96,6 +97,10 @@ interface FieldConditionalChildrenEditorProps {
   operators: DimFieldConditionOperator[];
   inputTypes: DimFieldInputType[];
   hierarchies: DimFieldHierarchy[];
+  /** Powers each row's English -> Tagalog auto-translate (see useAutoTranslate.ts). */
+  token: string | null | undefined;
+  /** View mode — hides Add/remove chrome (see BenefitItemListEditor.tsx's identical prop). */
+  disabled?: boolean;
 }
 
 // "Children Dependents" — the parent-authored shortcut for a field that pops up right
@@ -112,6 +117,8 @@ export function FieldConditionalChildrenEditor({
   operators,
   inputTypes,
   hierarchies,
+  token,
+  disabled,
 }: FieldConditionalChildrenEditorProps) {
   const childInputTypes = inputTypes.filter((t) => t.value !== "REPEATER_GROUP");
   const triggerOperators = operators.filter((o) => o.fieldInputTypeId === parentField.fieldInputTypeId);
@@ -144,21 +151,25 @@ export function FieldConditionalChildrenEditor({
             onChange={(patch) => updateChild(child.localId, patch)}
             onRemove={() => removeChild(child)}
             onRemoveExistingOption={(optionId) => child.id && onRemoveExistingOption(child.id, optionId)}
+            token={token}
+            disabled={disabled}
           />
         ))}
       </div>
 
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={triggerOperators.length === 0}
-        onClick={() => onChange([...children, emptyAnchoredChild(childInputTypes[0]?.id ?? "", triggerOperators[0]?.id ?? "")])}
-      >
-        <Plus /> Add Conditional Child
-      </Button>
+      {!disabled && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={triggerOperators.length === 0}
+          onClick={() => onChange([...children, emptyAnchoredChild(childInputTypes[0]?.id ?? "", triggerOperators[0]?.id ?? "")])}
+        >
+          <Plus /> Add Conditional Child
+        </Button>
+      )}
 
-      {triggerOperators.length === 0 && (
+      {!disabled && triggerOperators.length === 0 && (
         <p className="text-xs text-muted-foreground">No condition operators are configured for this field's input type yet.</p>
       )}
     </div>
@@ -257,6 +268,8 @@ function ChildRow({
   onChange,
   onRemove,
   onRemoveExistingOption,
+  token,
+  disabled,
 }: {
   child: LocalAnchoredChild;
   parentField: AnchorParentField;
@@ -267,11 +280,16 @@ function ChildRow({
   onChange: (patch: Partial<LocalAnchoredChild>) => void;
   onRemove: () => void;
   onRemoveExistingOption: (optionId: string) => void;
+  token: string | null | undefined;
+  disabled?: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(!child.id);
   const inputType = inputTypes.find((t) => t.id === child.fieldInputTypeId);
   const isSelectType = inputType?.value === "SINGLE_SELECT" || inputType?.value === "MULTI_SELECT";
   const isHierarchyType = inputType?.value === "HIERARCHY_SELECT";
+
+  const nameTranslate = useAutoTranslate({ sourceValue: child.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
+  const descriptionTranslate = useAutoTranslate({ sourceValue: child.englishDescription, onTargetChange: (v) => onChange({ tagalogDescription: v }), token });
 
   return (
     <div className={cn("rounded-lg border border-border bg-card")}>
@@ -283,9 +301,11 @@ function ChildRow({
           <p className="truncate text-sm font-medium text-foreground">{child.englishName || "Untitled conditional child"}</p>
           <p className="truncate text-xs text-muted-foreground">{inputType?.englishName ?? "No type selected"}</p>
         </div>
-        <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
-          <Trash2 className="size-4" />
-        </Button>
+        {!disabled && (
+          <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+            <Trash2 className="size-4" />
+          </Button>
+        )}
       </div>
 
       {expanded && (
@@ -307,11 +327,16 @@ function ChildRow({
 
           <div className="grid grid-cols-2 gap-4">
             <TextField label="English Name" value={child.englishName} onChange={(v) => onChange({ englishName: v })} required />
-            <TextField label="Tagalog Name" value={child.tagalogName} onChange={(v) => onChange({ tagalogName: v })} required />
+            <TextField label="Tagalog Name" value={child.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <TextareaField label="English Description" value={child.englishDescription} onChange={(v) => onChange({ englishDescription: v })} />
-            <TextareaField label="Tagalog Description" value={child.tagalogDescription} onChange={(v) => onChange({ tagalogDescription: v })} />
+            <TextareaField
+              label="Tagalog Description"
+              value={child.tagalogDescription}
+              onChange={descriptionTranslate.handleTargetChange}
+              badge={descriptionTranslate.badge}
+            />
           </div>
 
           <SelectField
@@ -333,7 +358,7 @@ function ChildRow({
           {isSelectType && (
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-foreground">Options</Label>
-              <OptionsEditor options={child.options} onChange={(options) => onChange({ options })} onRemoveExisting={onRemoveExistingOption} />
+              <OptionsEditor options={child.options} onChange={(options) => onChange({ options })} onRemoveExisting={onRemoveExistingOption} token={token} disabled={disabled} />
             </div>
           )}
 

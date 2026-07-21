@@ -475,16 +475,21 @@ export const profileFields: ProfileFieldDef[] = [
     configJson: null,
     notConditional: false,
     // Same drill as Religion/Marital Status — value === englishName verbatim, no real
-    // tagalog translation (see ProfileFieldOptionDef's comment).
+    // tagalog translation (see ProfileFieldOptionDef's comment). Plain ASCII hyphen, not an
+    // en-dash — verified against the live eGov payload's actual
+    // additional_information.expected_salary.expected_salary string (e.g.
+    // "130,001-180,000"), which uses "-", not "–". An en-dash here silently broke the
+    // SELECT match: the value still flowed into the field, but no option's `value` matched
+    // it character-for-character, so nothing appeared selected.
     options: [
       { englishName: "Below 15,000", tagalogName: "Below 15,000", value: "Below 15,000" },
-      { englishName: "15,000–25,000", tagalogName: "15,000–25,000", value: "15,000–25,000" },
-      { englishName: "25,001–40,000", tagalogName: "25,001–40,000", value: "25,001–40,000" },
-      { englishName: "40,001–60,000", tagalogName: "40,001–60,000", value: "40,001–60,000" },
-      { englishName: "60,001–90,000", tagalogName: "60,001–90,000", value: "60,001–90,000" },
-      { englishName: "90,001–130,000", tagalogName: "90,001–130,000", value: "90,001–130,000" },
-      { englishName: "130,001–180,000", tagalogName: "130,001–180,000", value: "130,001–180,000" },
-      { englishName: "180,001–250,000", tagalogName: "180,001–250,000", value: "180,001–250,000" },
+      { englishName: "15,000-25,000", tagalogName: "15,000-25,000", value: "15,000-25,000" },
+      { englishName: "25,001-40,000", tagalogName: "25,001-40,000", value: "25,001-40,000" },
+      { englishName: "40,001-60,000", tagalogName: "40,001-60,000", value: "40,001-60,000" },
+      { englishName: "60,001-90,000", tagalogName: "60,001-90,000", value: "60,001-90,000" },
+      { englishName: "90,001-130,000", tagalogName: "90,001-130,000", value: "90,001-130,000" },
+      { englishName: "130,001-180,000", tagalogName: "130,001-180,000", value: "130,001-180,000" },
+      { englishName: "180,001-250,000", tagalogName: "180,001-250,000", value: "180,001-250,000" },
       { englishName: "Above 250,000", tagalogName: "Above 250,000", value: "Above 250,000" },
     ],
   },

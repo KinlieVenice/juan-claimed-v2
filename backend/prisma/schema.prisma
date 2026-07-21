@@ -20,7 +20,7 @@ datasource db {
 
 // Im making a no code dynamic benefit finder. these comments are for claude to understand my whole project down to the schema
 
-// Project: Juan-Claimed. No code benefits finder. Agents create the benefits and Users answers the questions/fields agents set
+// Project: Juan Claimed. No code benefits finder. Agents create the benefits and Users answers the questions/fields agents set
 
 // THIS WHOLE STORY COMMENTS ARE FOR BENEFITS PART ONLY. FIELD AND HIERARCHY TABLES ARE FOR ANOTHER PLAN. FOR NOW I WILL ONLY EXPLAIN BENEFITS, USERS, SCOPES AND GROUPS.
 
@@ -526,15 +526,19 @@ model DimField {
   sortOrder      Int                 @default(0)
   configJson     Json?
   classification FieldClassification @default(FOLLOW_UP)
-  // A system-shipped starter field, whether or not it's actually eGovPH-sourced (see
-  // eGovField below) — e.g. "Occupation" is `default` but was authored by us, not synced.
+  // A system-shipped starter field — seeded once (profileFieldSeeder.ts), not something an
+  // admin authored from scratch. Distinct from `eGovField` below: `default` is about WHERE
+  // the field definition came from (us, at seed time), `eGovField` is about WHERE the
+  // field's VALUE comes from (eGovPH, at answer time) — a field can in principle be one
+  // without the other, though every current default field happens to be both.
   default        Boolean             @default(false)
   // True = this field's VALUE is genuinely sourced from eGovPH (pre-filled on the public
-  // form, locked from editing there; name/classification locked in the admin form too).
-  // Distinct from `default`: a field can be a system-shipped starter field without being
-  // eGov-sourced (see the Occupation example above), so this is the actual signal for
+  // form, locked from editing there; name/classification locked in the admin form too) —
   // "don't let anyone hand-edit this — it either comes from eGovPH or must stay in sync
-  // with what eGovPH literally calls it."
+  // with what eGovPH literally calls it." A field can still need its own resolution logic to
+  // MAP eGov's raw value onto this field's own option codes (e.g. Occupation — see
+  // resolveEgovOccupationValues in the frontend's lib/egov-profile-map.ts) without that
+  // changing this flag.
   eGovField      Boolean             @default(false)
   // True = this field can still be answered like any other GLOBAL/FOLLOW_UP field, but
   // must not be selectable as a dependency target when an admin builds a benefit's

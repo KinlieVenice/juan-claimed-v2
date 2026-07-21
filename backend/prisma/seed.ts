@@ -9,6 +9,7 @@ import { seedCountries } from "./seeders/countriesSeeder.js";
 import { seedSchools } from "./seeders/schoolsSeeder.js";
 import { seedPhLocationHierarchy } from "./seeders/phLocationHierarchySeeder.js";
 import { seedOccupationOthers } from "./seeders/occupationOthersSeeder.js";
+import { seedDemoData } from "./factories/demoPersonaFactory.js";
 
 async function main() {
   console.log('Executing Main Master Database Seed...');
@@ -27,6 +28,11 @@ async function main() {
   await seedCountries();
 
   await seedSchools();
+
+  // Runs last — depends on GLOBAL fields (profile fields), Educational Attainment's
+  // options, Occupation's options, Residence's hierarchy attachment, and DimCountries all
+  // already being in place.
+  await seedDemoData();
 
   // Future seed blocks can be safely added here:
   // await seedDefaultSettings(prisma);

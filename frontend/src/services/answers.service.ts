@@ -35,3 +35,7 @@ export async function createAnswerGroup(fieldId: string, token?: string): Promis
 export async function getMyAnswerGroups(fieldId: string, token?: string): Promise<UserFieldAnswerGroup[]> {
   return apiFetch<UserFieldAnswerGroup[]>(`/api/field-answers/groups/${fieldId}`, { token });
 }
+
+export async function deleteAnswerGroup(groupId: string, token?: string): Promise<void> {
+  await apiFetch<null>(`/api/field-answers/groups/${groupId}`, { method: "DELETE", token });
+}

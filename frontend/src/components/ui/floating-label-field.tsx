@@ -3,9 +3,10 @@ import { cn } from "@/lib/utils";
 
 interface FloatingLabelFieldProps {
   label: string;
-  /** Small line under the label, e.g. its Tagalog translation — testing only. Only shows
-   * once the label itself has floated to the top caption position (see `floated` below);
-   * there's no room for it while the label sits centered as placeholder text. */
+  /** Small parenthesized, italicized text right beside the label, e.g. its Tagalog
+   * translation — testing only. Lives inside the same label element as `label` (not a
+   * separately-positioned element), so it's always contained within the box's upper-left,
+   * never able to render outside it. */
   sublabel?: string;
   htmlFor?: string;
   /** Whether the field currently holds a value — floats the label even when not focused. */
@@ -93,30 +94,40 @@ export function FloatingLabelField({
         onBlur={isActiveControlled ? undefined : () => setInternalFocused(false)}
         onClick={disableClickCascade ? undefined : cascadeClick}
         className={cn(
-          "relative rounded-lg border bg-muted/50 transition-colors",
+          "relative rounded-lg border transition-colors",
+          // A flat bg-muted/50 + opacity-70 fade used to apply to every field alike, enabled
+          // or not — every field looked equally "disabled" regardless of whether it actually
+          // was. bg-white read as too stark, plain bg-background (#f7f8fc, same token the
+          // admin side uses) still read as a touch too gray — #fafbfe splits the difference,
+          // a small nudge lighter than --background rather than jumping to pure white.
+          // Disabled stays on bg-muted/70 here (admin's own baseline) — field-surface-disabled
+          // is a plain marker class (no styles of its own) that index.css's .apply-bg scope
+          // hooks to lighten it further just on the user side, where the same gray read
+          // noticeably grayer against the cream/gradient apply-bg backdrop than it does here.
+          disabled ? "bg-muted/70 field-surface-disabled" : "bg-[#fafbfe]",
           error ? "border-destructive" : focused ? "border-primary ring-2 ring-primary/15" : "border-input",
-          disabled ? "opacity-70" : "cursor-text",
+          disabled ? "cursor-default" : "cursor-text",
         )}
       >
         <label
           htmlFor={htmlFor}
           className={cn(
-            "pointer-events-none absolute left-3 z-10 origin-left text-muted-foreground transition-all duration-150",
-            floated ? "top-1.5" : "top-1/2 -translate-y-1/2 text-sm",
+            "pointer-events-none absolute left-3 top-0 z-10 block max-w-[calc(100%-1.5rem)] origin-left truncate text-muted-foreground transition-all duration-150",
+            !floated && "top-1/2 -translate-y-1/2",
             focused && !error && "text-primary",
             error && floated && "text-destructive",
           )}
         >
-          <span className={floated ? "text-[11px] font-medium leading-none" : undefined}>
+          <span className={floated ? "text-[11px] font-medium leading-none" : "text-sm"}>
             {label}
             {required && <span className="text-destructive"> *</span>}
           </span>
-          {floated && sublabel && <span className="mt-0.5 block text-[9px] leading-none text-muted-foreground/70 italic">{sublabel}</span>}
+          {sublabel && <span className="ml-1 text-[9px] font-normal text-muted-foreground/70 italic">({sublabel})</span>}
         </label>
 
         {badge && <div className="absolute -top-2.5 right-3 z-10">{badge}</div>}
 
-        <div ref={contentRef} className={cn("min-h-11 px-3 pb-1.5", floated && sublabel ? "pt-7" : "pt-5")}>
+        <div ref={contentRef} className="min-h-11 px-3 pt-5 pb-1.5">
           {children}
         </div>
       </div>

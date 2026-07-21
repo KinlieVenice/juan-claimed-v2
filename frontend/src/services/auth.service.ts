@@ -49,10 +49,9 @@ export interface EgovProfile {
   country_id?: number | null;
   foreign_address?: string | null;
   signature?: string | null;
-  occupation?: string | null;
   // Everything below sits under a nested "additional_information" block instead of the
   // flat fields above — see the team's field-mapping table (Marital Status, Religion,
-  // Weight, Height, Educational Attainment, Industry, Salary Range).
+  // Weight, Height, Educational Attainment, Industry, Salary Range, Occupation).
   additional_information?: EgovAdditionalInformation | null;
 }
 
@@ -74,6 +73,9 @@ export interface EgovAdditionalInformation {
     height?: number | string | null;
   } | null;
   educational_attainment?: EgovEducationalAttainmentEntry[] | null;
+  occupation?: {
+    occupation?: string | null;
+  } | null;
   industry?: {
     industry?: string | null;
   } | null;

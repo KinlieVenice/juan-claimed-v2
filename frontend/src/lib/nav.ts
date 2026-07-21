@@ -36,7 +36,6 @@ const SUPERADMIN_NAV: NavEntry[] = [
 
 const AGENT_NAV: NavEntry[] = [
   { label: "My Group", to: "/admin/my-group", icon: UserCircle2 },
-  { label: "Agent Mates", to: "/admin/agent-mates", icon: Contact },
   { label: "Benefit", to: "/admin/benefits", icon: Gift },
   { label: "Fields", to: "/admin/fields", icon: ListChecks },
 ];

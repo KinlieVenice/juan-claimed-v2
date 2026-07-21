@@ -12,6 +12,12 @@ export const TOKEN_KEY = "jc.auth-token";
 // loginWithEgov comment), so it has to survive a page refresh on its own.
 export const EGOV_PROFILE_KEY = "jc.egov-profile";
 
+// Where AnswersProvider (lib/answers-store.tsx) keeps a signed-out guest's answers/groups —
+// same "defined here, not there" reasoning as the two keys above: this file is the shared,
+// dependency-free home for every localStorage key, so auth.tsx's logout() can clear this one
+// too without importing from answers-store.tsx (which itself depends on auth.tsx's useAuth).
+export const GUEST_ANSWERS_KEY = "jc.guest-answers";
+
 const readStoredToken = (): string | undefined => (typeof window === "undefined" ? undefined : (window.localStorage.getItem(TOKEN_KEY) ?? undefined));
 
 export interface ApiEnvelope<T> {

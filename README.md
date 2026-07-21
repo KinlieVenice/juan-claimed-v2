@@ -12,7 +12,7 @@ That's it — no local Node/Postgres install needed.
 
 ```bash
 git clone <repo-url>
-cd juan-claimed-v2
+cd Juan Claimed-v2
 docker compose up -d --build
 ```
 

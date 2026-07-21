@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { getSubfields } from "@/services/fields.service";
 import { useAnswers } from "@/lib/answers-store";
@@ -20,8 +20,8 @@ interface FieldFormProps {
   /**
    * Marks every non-REPEATER_GROUP field inert (read-only, unfocusable) — e.g. ProfilePage's
    * view-before-you-toggle-Edit state. REPEATER_GROUP sections are deliberately never
-   * inert: a real one saves each cell immediately regardless of this toggle (see
-   * RepeaterGroupInput's own comment), and an eGov preview table still needs to stay
+   * inert: a real one saves each cell on its own debounced timer regardless of this toggle
+   * (see RepeaterGroupInput's own comment), and an eGov preview table still needs to stay
    * horizontally scrollable in "view only" mode — wrapping the whole form in one blanket
    * `inert` div (the previous approach) blocked scrolling inside it too, since `inert`
    * disables pointer interaction for its entire subtree with no CSS escape hatch.
@@ -77,10 +77,11 @@ export function FieldForm({ fields, values, onChange, columns = 2, locked = fals
 // layout around it is new (the previous version stacked rows as separate cards).
 function RepeaterGroupInput({ field }: { field: DimField }) {
   const { token } = useAuth();
-  const { groups, answers, addAnswerGroup, refetchGroups, submit } = useAnswers();
+  const { groups, answers, addAnswerGroup, deleteAnswerGroup, refetchGroups, submit } = useAnswers();
   const { showApiError } = useAlert();
   const [subfields, setSubfields] = React.useState<DimField[]>([]);
   const [adding, setAdding] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     // No `!token` guard — getSubfields falls back to the public, no-auth field list when
@@ -104,8 +105,48 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
   const maxRows = field.configJson?.maxRows as number | undefined;
   const atMax = typeof maxRows === "number" && rows.length >= maxRows;
 
-  const valueFor = (repeaterGroupId: string, subfieldId: string) =>
-    answers.find((a) => a.repeaterGroupId === repeaterGroupId && a.fieldId === subfieldId)?.value;
+  // A cell's onChange used to call `submit` directly, and its displayed value came straight
+  // from `answers` (server-confirmed state) — so every keystroke waited on a full PUT
+  // round-trip before the typed character actually appeared (visible input lag, worse than
+  // the debounce below on a slow connection). `localOverrides` shows the typed value
+  // instantly; the debounced save reconciles it with the server, then drops the override so
+  // `answers` takes back over as the source of truth.
+  const [localOverrides, setLocalOverrides] = React.useState<Record<string, unknown>>({});
+  const saveTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const cellKey = (repeaterGroupId: string, subfieldId: string) => `${repeaterGroupId}:${subfieldId}`;
+
+  React.useEffect(() => {
+    const timers = saveTimers.current;
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, []);
+
+  const valueFor = (repeaterGroupId: string, subfieldId: string) => {
+    const key = cellKey(repeaterGroupId, subfieldId);
+    if (key in localOverrides) return localOverrides[key];
+    return answers.find((a) => a.repeaterGroupId === repeaterGroupId && a.fieldId === subfieldId)?.value;
+  };
+
+  const handleCellChange = (repeaterGroupId: string, subfieldId: string, value: unknown) => {
+    const key = cellKey(repeaterGroupId, subfieldId);
+    setLocalOverrides((prev) => ({ ...prev, [key]: value }));
+
+    if (saveTimers.current[key]) clearTimeout(saveTimers.current[key]);
+    saveTimers.current[key] = setTimeout(async () => {
+      try {
+        await submit([{ fieldId: subfieldId, value, repeaterGroupId }]);
+      } catch (err) {
+        showApiError(err);
+      }
+      setLocalOverrides((prev) => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }, 500);
+  };
 
   const handleAddRow = async () => {
     setAdding(true);
@@ -117,6 +158,32 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
     setAdding(false);
   };
 
+  const handleDeleteRow = async (rowId: string) => {
+    // Cancel any cell in this row still waiting on its debounced save — otherwise it fires
+    // after the row (and its DB-side group) is already gone, surfacing a spurious
+    // ANSWER_GROUP_NOT_FOUND error for an edit the user no longer cares about.
+    const prefix = `${rowId}:`;
+    for (const key of Object.keys(saveTimers.current)) {
+      if (key.startsWith(prefix)) {
+        clearTimeout(saveTimers.current[key]);
+        delete saveTimers.current[key];
+      }
+    }
+    setLocalOverrides((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) if (key.startsWith(prefix)) delete next[key];
+      return next;
+    });
+
+    setDeletingId(rowId);
+    try {
+      await deleteAnswerGroup(rowId);
+    } catch (err) {
+      showApiError(err);
+    }
+    setDeletingId(null);
+  };
+
   return (
     <FloatingLabelField
       label={field.englishName}
@@ -124,9 +191,13 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
       hasValue
       disableClickCascade
       badge={
-        <Button type="button" size="sm" variant="outline" onClick={handleAddRow} disabled={adding || atMax} className="h-6 gap-1 px-2 text-[11px]">
-          {adding ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />} Add Row
-        </Button>
+        // Hidden (not just disabled) once at the configured max — nothing left to invite a
+        // click toward. atMax is false whenever maxRows is unset, so this never hides here.
+        !atMax && (
+          <Button type="button" size="sm" variant="outline" onClick={handleAddRow} disabled={adding} className="h-6 gap-1 px-2 text-[11px]">
+            {adding ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />} Add Row
+          </Button>
+        )
       }
     >
       {rows.length === 0 ? (
@@ -145,6 +216,7 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
                     {sub.required && <span className="text-destructive"> *</span>}
                   </th>
                 ))}
+                <th className="w-10 px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -156,10 +228,21 @@ function RepeaterGroupInput({ field }: { field: DimField }) {
                       <FieldInput
                         field={sub}
                         value={valueFor(row.id, sub.id)}
-                        onChange={(v) => submit([{ fieldId: sub.id, value: v, repeaterGroupId: row.id }])}
+                        onChange={(v) => handleCellChange(row.id, sub.id, v)}
                       />
                     </td>
                   ))}
+                  <td className="px-3 py-3 align-top">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRow(row.id)}
+                      disabled={deletingId === row.id}
+                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-60"
+                      aria-label={`Delete row ${index + 1}`}
+                    >
+                      {deletingId === row.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

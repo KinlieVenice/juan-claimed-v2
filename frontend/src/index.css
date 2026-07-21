@@ -243,4 +243,12 @@
       radial-gradient(1000px 700px at 50% 110%, #dbe6ff88 0%, transparent 60%),
       var(--color-cream);
   }
+
+  /* Disabled fields (FloatingLabelField's bg-muted/70) read noticeably grayer here than on
+     admin's plain background, against the cream/gradient apply-bg backdrop above — lightened
+     just on this side rather than changing the shared admin/user default. Two-class
+     specificity beats the single bg-muted/70 utility class without needing !important. */
+  .apply-bg .field-surface-disabled {
+    background-color: #f5f6fa;
+  }
 }

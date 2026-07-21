@@ -2,6 +2,7 @@ import * as React from "react";
 import { Plus, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
+import { useAutoTranslate } from "@/hooks/useAutoTranslate";
 
 const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `id-${Math.random().toString(36).slice(2)}`);
 
@@ -24,7 +25,16 @@ export const emptyNode = (): LocalHierarchyNode => ({ localId: newId(), englishN
 // Ordered depth definitions for a new hierarchy — e.g. "Region" (depth 1), "Province"
 // (depth 2), "Barangay" (depth 3). Order in the list IS the level number (1-indexed),
 // same convention as the options list — no separate reordering UI needed.
-export function HierarchyLevelsEditor({ levels, onChange }: { levels: LocalHierarchyLevel[]; onChange: (levels: LocalHierarchyLevel[]) => void }) {
+export function HierarchyLevelsEditor({
+  levels,
+  onChange,
+  token,
+}: {
+  levels: LocalHierarchyLevel[];
+  onChange: (levels: LocalHierarchyLevel[]) => void;
+  /** Powers each level's English -> Tagalog auto-translate (see useAutoTranslate.ts). */
+  token: string | null | undefined;
+}) {
   const update = (localId: string, patch: Partial<LocalHierarchyLevel>) => {
     onChange(levels.map((l) => (l.localId === localId ? { ...l, ...patch } : l)));
   };
@@ -34,22 +44,7 @@ export function HierarchyLevelsEditor({ levels, onChange }: { levels: LocalHiera
       {levels.length === 0 && <p className="text-xs text-muted-foreground">No levels yet — add at least one (e.g. "Region", then "Province", then "Barangay").</p>}
 
       {levels.map((level, index) => (
-        <div key={level.localId} className="flex items-start gap-2 rounded-lg border border-border p-3">
-          <span className="mt-3 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">{index + 1}</span>
-          <div className="grid flex-1 grid-cols-2 gap-2">
-            <TextField label="English Name" value={level.englishName} onChange={(v) => update(level.localId, { englishName: v })} required />
-            <TextField label="Tagalog Name" value={level.tagalogName} onChange={(v) => update(level.localId, { tagalogName: v })} required />
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="mt-1 size-8 shrink-0 text-muted-foreground hover:text-destructive"
-            onClick={() => onChange(levels.filter((l) => l.localId !== level.localId))}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
+        <HierarchyLevelRow key={level.localId} level={level} index={index} onChange={(patch) => update(level.localId, patch)} onRemove={() => onChange(levels.filter((l) => l.localId !== level.localId))} token={token} />
       ))}
 
       <Button type="button" size="sm" variant="outline" onClick={() => onChange([...levels, emptyLevel()])}>
@@ -59,17 +54,48 @@ export function HierarchyLevelsEditor({ levels, onChange }: { levels: LocalHiera
   );
 }
 
+function HierarchyLevelRow({
+  level,
+  index,
+  onChange,
+  onRemove,
+  token,
+}: {
+  level: LocalHierarchyLevel;
+  index: number;
+  onChange: (patch: Partial<LocalHierarchyLevel>) => void;
+  onRemove: () => void;
+  token: string | null | undefined;
+}) {
+  const nameTranslate = useAutoTranslate({ sourceValue: level.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token });
+
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-border p-3">
+      <span className="mt-3 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">{index + 1}</span>
+      <div className="grid flex-1 grid-cols-2 gap-2">
+        <TextField label="English Name" value={level.englishName} onChange={(v) => onChange({ englishName: v })} required />
+        <TextField label="Tagalog Name" value={level.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
+      </div>
+      <Button type="button" size="icon" variant="ghost" className="mt-1 size-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
+  );
+}
+
 interface HierarchyNodeTreeEditorProps {
   levels: LocalHierarchyLevel[];
   nodes: LocalHierarchyNode[];
   onChange: (nodes: LocalHierarchyNode[]) => void;
+  /** Powers each node's English -> Tagalog auto-translate (see useAutoTranslate.ts). */
+  token: string | null | undefined;
 }
 
 // A recursive node tree, depth-limited by however many levels were defined above — e.g. 3
 // levels means root nodes ("Region") can have children ("Province"), which can have
 // children ("Barangay"), but no deeper. Mirrors FieldConditionTreeBuilder's recursive
 // group-editor pattern, one node type instead of group/leaf.
-export function HierarchyNodeTreeEditor({ levels, nodes, onChange }: HierarchyNodeTreeEditorProps) {
+export function HierarchyNodeTreeEditor({ levels, nodes, onChange, token }: HierarchyNodeTreeEditorProps) {
   if (levels.length === 0) {
     return <p className="text-xs text-muted-foreground">Define at least one level above before adding values.</p>;
   }
@@ -86,6 +112,7 @@ export function HierarchyNodeTreeEditor({ levels, nodes, onChange }: HierarchyNo
           levels={levels}
           onChange={(updated) => onChange(nodes.map((n, i) => (i === index ? updated : n)))}
           onRemove={() => onChange(nodes.filter((_, i) => i !== index))}
+          token={token}
         />
       ))}
 
@@ -102,16 +129,20 @@ function HierarchyNodeRow({
   levels,
   onChange,
   onRemove,
+  token,
 }: {
   node: LocalHierarchyNode;
   depth: number;
   levels: LocalHierarchyLevel[];
   onChange: (node: LocalHierarchyNode) => void;
   onRemove: () => void;
+  token: string | null | undefined;
 }) {
   const [expanded, setExpanded] = React.useState(true);
   const canHaveChildren = depth + 1 < levels.length;
   const childLevelLabel = canHaveChildren ? levels[depth + 1]?.englishName : null;
+
+  const nameTranslate = useAutoTranslate({ sourceValue: node.englishName, onTargetChange: (v) => onChange({ ...node, tagalogName: v }), token });
 
   return (
     <div className="rounded-lg border border-border" style={{ marginLeft: depth * 20 }}>
@@ -134,9 +165,10 @@ function HierarchyNodeRow({
         <TextField
           label={`${levels[depth]?.englishName || "Name"} (Tagalog)`}
           value={node.tagalogName}
-          onChange={(v) => onChange({ ...node, tagalogName: v })}
+          onChange={nameTranslate.handleTargetChange}
           required
           containerClassName="flex-1"
+          badge={nameTranslate.badge}
         />
 
         {canHaveChildren && (
@@ -166,6 +198,7 @@ function HierarchyNodeRow({
               levels={levels}
               onChange={(updated) => onChange({ ...node, children: node.children.map((c, i) => (i === index ? updated : c)) })}
               onRemove={() => onChange({ ...node, children: node.children.filter((_, i) => i !== index) })}
+              token={token}
             />
           ))}
         </div>

@@ -20,7 +20,6 @@ import { AllUsersPage } from "@/pages/admin/AllUsersPage";
 import { AgentsStaffPage } from "@/pages/admin/AgentsStaffPage";
 import { GroupsPage } from "@/pages/admin/GroupsPage";
 import { MyGroupPage } from "@/pages/admin/MyGroupPage";
-import { AgentMatesPage } from "@/pages/admin/AgentMatesPage";
 import { BenefitsAdminPage } from "@/pages/admin/BenefitsAdminPage";
 import { FieldsAdminPage } from "@/pages/admin/FieldsAdminPage";
 import { AdminProfilePage } from "@/pages/admin/AdminProfilePage";
@@ -95,7 +94,6 @@ function App() {
                       </Route>
                       <Route element={<RequireRole allow={["AGENT"]} redirectTo="/admin/benefits" />}>
                         <Route path="my-group" element={<MyGroupPage />} />
-                        <Route path="agent-mates" element={<AgentMatesPage />} />
                       </Route>
                       <Route path="benefits" element={<BenefitsAdminPage />} />
                       <Route path="fields" element={<FieldsAdminPage />} />

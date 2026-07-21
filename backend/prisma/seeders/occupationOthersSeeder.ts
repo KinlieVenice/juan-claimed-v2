@@ -70,5 +70,12 @@ export async function seedOccupationOthers() {
   // ever re-run in isolation without a preceding truncate.
   const field = existing ? await editField(existing.id, compositeInput) : await addField(compositeInput);
 
+  // eGovField isn't part of the composite create/update schema (addField/editField never
+  // touch it — see requests/field.request.ts) since it's not admin-authorable content, it's
+  // a fact about where the field's value comes from. Set directly here, same as Occupation
+  // itself (profileFieldSeeder.ts): this field only ever holds a value because Occupation's
+  // own eGov-synced answer was "Others", so it's exactly as eGov-locked as its parent.
+  await prisma.dimField.update({ where: { id: field.id }, data: { eGovField: true, classification: "GLOBAL" } });
+
   console.log(`"Please Specify Occupation" ${existing ? "refreshed" : "created"} (key ${field.key}) and anchored to Occupation.`);
 }

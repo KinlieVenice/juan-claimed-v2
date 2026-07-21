@@ -122,6 +122,12 @@ export function HierarchySelectField({
     if (isLeaf && node) onChange(node.value);
   };
 
+  // Same "optional-or-complete, never half-answered" rule as PsgcPhLocationHierarchyField —
+  // handleSelectAt above only calls onChange once a leaf is reached, so `!value && path.length`
+  // can only mean "picked some levels, never reached a leaf."
+  const isPartial = !value && path.length > 0;
+  const partialError = isPartial ? "Please finish selecting every level, or clear this field entirely." : undefined;
+
   const depths: { parentId: string | null }[] = [{ parentId: null }, ...path.map((id) => ({ parentId: id }))];
   const columns: HierarchyColumn[] = depths
     .map((col, depth) => ({
@@ -136,6 +142,7 @@ export function HierarchySelectField({
   return (
     <FloatingLabelField
       label={label}
+      sublabel={sublabel}
       // Forced, not !!value — a cascading stack always has at least one select visibly
       // rendered from the start (unlike a plain text/date input's genuinely empty state), so
       // leaving the label to float only once a full leaf is picked would sit it centered
@@ -144,7 +151,7 @@ export function HierarchySelectField({
       hasValue
       required={required}
       disabled={disabled}
-      error={error}
+      error={error ?? partialError}
       hint={hint}
       badge={badge}
       className={containerClassName}

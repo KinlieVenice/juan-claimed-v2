@@ -61,22 +61,40 @@ export const loginWithGoogle = async (idToken: string) => {
   });
 
   if (!user) {
-    const username = await deriveUniqueUsername(payload.email);
-    user = await prisma.dimUser.create({
-      data: {
-        username,
-        email: payload.email,
-        firstName: payload.given_name || payload.name || "Google",
-        lastName: payload.family_name || "User",
-        role: "USER",
-        googleId: payload.sub,
-        avatarUrl: payload.picture ?? null,
-        scopeId: null,
-        groupId: null,
-        psgcCode: null,
-      },
+    // Bind to a pre-existing account matching this Google account's email — e.g. a demo
+    // persona seeded with its own eGov/global field answers already filled in (see
+    // prisma/factories/demoPersonaFactory.ts) — instead of always creating a fresh blank
+    // account. Its own name/etc. stays exactly as seeded; only googleId (and avatarUrl, if
+    // it didn't already have one) gets filled in, since that's the actual missing link.
+    const existingByEmail = await prisma.dimUser.findFirst({
+      where: { email: { equals: payload.email, mode: "insensitive" }, deletedAt: null },
       include: { scope: true, group: true },
     });
+
+    if (existingByEmail) {
+      user = await prisma.dimUser.update({
+        where: { id: existingByEmail.id },
+        data: { googleId: payload.sub, avatarUrl: existingByEmail.avatarUrl ?? payload.picture ?? null },
+        include: { scope: true, group: true },
+      });
+    } else {
+      const username = await deriveUniqueUsername(payload.email);
+      user = await prisma.dimUser.create({
+        data: {
+          username,
+          email: payload.email,
+          firstName: payload.given_name || payload.name || "Google",
+          lastName: payload.family_name || "User",
+          role: "USER",
+          googleId: payload.sub,
+          avatarUrl: payload.picture ?? null,
+          scopeId: null,
+          groupId: null,
+          psgcCode: null,
+        },
+        include: { scope: true, group: true },
+      });
+    }
   }
 
   if (!user.active) {

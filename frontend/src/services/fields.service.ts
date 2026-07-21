@@ -209,7 +209,11 @@ export async function getFieldInputTypes(token: string): Promise<DimFieldInputTy
   return apiFetch<DimFieldInputType[]>("/api/field-input-types", { token });
 }
 
-export async function getFieldConditionOperators(fieldInputTypeId: string | undefined, token: string): Promise<DimFieldConditionOperator[]> {
+export async function getFieldConditionOperators(fieldInputTypeId: string | undefined, token: string | null | undefined): Promise<DimFieldConditionOperator[]> {
   const qs = fieldInputTypeId ? `?fieldInputTypeId=${fieldInputTypeId}` : "";
-  return apiFetch<DimFieldConditionOperator[]>(`/api/field-condition-operators${qs}`, { token });
+  // No token = the "public/no account" flow (same fallback pattern as getFieldOptions) —
+  // needed so a guest browsing BenefitDetailsPage can resolve operator names for
+  // ConditionTreeView's read-only eligibility rendering.
+  const base = token ? "/api/field-condition-operators" : "/api/field-condition-operators/public";
+  return apiFetch<DimFieldConditionOperator[]>(`${base}${qs}`, { token: token ?? undefined });
 }

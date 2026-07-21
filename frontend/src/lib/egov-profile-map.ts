@@ -24,6 +24,15 @@ const asNumber = (value: unknown): number | null => {
   return Number.isNaN(n) ? null : n;
 };
 
+// Gender's seeded options keep the normal toSnakeCaseKey("Male") -> "MALE" convention
+// (unlike Religion/Marital Status/etc.'s verbatim-value options) — eGov sends lowercase
+// "male"/"female", so this converts on read instead of the option values on write, keeping
+// the seed data untouched.
+const asUppercaseString = (value: unknown): string | null => {
+  const s = asString(value);
+  return s ? s.toUpperCase() : null;
+};
+
 // Simple (non-repeater) fields only — keyed by DimField.englishName, same convention
 // profileFieldSeeder.ts uses to identify fields (englishName is unique).
 const SIMPLE_FIELD_MAP: Record<string, (profile: EgovProfile) => unknown> = {
@@ -33,7 +42,7 @@ const SIMPLE_FIELD_MAP: Record<string, (profile: EgovProfile) => unknown> = {
   Suffix: (p) => asString(p.suffix),
   "Email Address": (p) => asString(p.email),
   "Date of Birth": (p) => asString(p.birth_date),
-  Gender: (p) => asString(p.gender),
+  Gender: (p) => asUppercaseString(p.gender),
   "Mobile Number": (p) => asString(p.mobile),
   Nationality: (p) => asString(p.nationality),
   Country: (p) => asString(p.country),
@@ -42,10 +51,8 @@ const SIMPLE_FIELD_MAP: Record<string, (profile: EgovProfile) => unknown> = {
   "Full Address": (p) => asString(p.address),
   "Address Line 2": (p) => asString(p.address_line_2),
   "Foreign Address": (p) => asString(p.foreign_address),
-  // Not locked (eGovField: false, self-authored option list) — this just seeds a starting
-  // draft value; the applicant can still change it since our curated options rarely match
-  // eGov's raw string verbatim.
-  Occupation: (p) => asString(p.occupation),
+  // Occupation is NOT here — additional_information.occupation.occupation needs
+  // option-matching (see resolveEgovOccupationValues below), not a plain passthrough.
   "Marital Status": (p) => asString(p.additional_information?.other_personal_information?.marital_status),
   Religion: (p) => asString(p.additional_information?.other_personal_information?.religion),
   Weight: (p) => asNumber(p.additional_information?.health_data?.weight),
@@ -99,6 +106,41 @@ export function mapEgovProfileToFieldValues(
     if (value !== null) values[field.id] = value;
   }
 
+  return values;
+}
+
+/**
+ * Occupation is eGovField: true like every other synced field, but its option list is
+ * self-authored (a 38-option list we wrote, not a set of codes eGov itself owns) — so unlike
+ * every other mapped field here, the raw eGov string can't just be dropped in as the value:
+ * it has to resolve to one of OUR option `value`s (which are generated codes, e.g.
+ * toSnakeCaseKey("Manufacturing") -> "MANUFACTURING", not the raw string itself) for the
+ * SELECT to actually show it as selected. Matches case-insensitively against each option's
+ * englishName (the only thing eGov's free-text answer could plausibly line up with). No
+ * match -> falls back exactly like a human would: pick "Others" and type the raw string into
+ * "Please Specify Occupation".
+ *
+ * Needs the field's real DimFieldOption rows (fetched by the caller — this stays a pure
+ * function, no fetching of its own) and the two field ids by hand, since neither
+ * mapEgovProfileToFieldValues' plain {id, englishName} list nor SIMPLE_FIELD_MAP carries
+ * option data.
+ */
+export function resolveEgovOccupationValues(
+  egovProfile: EgovProfile | null,
+  occupationOptions: { englishName: string; value: string }[],
+  occupationFieldId: string,
+  pleaseSpecifyFieldId: string | null,
+): Record<string, unknown> {
+  const raw = asString(egovProfile?.additional_information?.occupation?.occupation);
+  if (!raw) return {};
+
+  const matched = occupationOptions.find((o) => o.englishName.toLowerCase() === raw.toLowerCase());
+  if (matched) return { [occupationFieldId]: matched.value };
+
+  const others = occupationOptions.find((o) => o.englishName.toLowerCase() === "others");
+  const values: Record<string, unknown> = {};
+  if (others) values[occupationFieldId] = others.value;
+  if (pleaseSpecifyFieldId) values[pleaseSpecifyFieldId] = raw;
   return values;
 }
 

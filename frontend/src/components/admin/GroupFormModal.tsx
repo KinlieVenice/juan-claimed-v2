@@ -2,9 +2,10 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAlert } from "@/lib/alert-store";
+import { useAutoTranslate } from "@/hooks/useAutoTranslate";
 import { createGroup, updateGroup, type UserGroup } from "@/services/users.service";
 import { Button } from "@/components/ui/button";
-import { TextField } from "@/components/ui/text-field";
+import { TextField, TextareaField } from "@/components/ui/text-field";
 import { ModalSection } from "@/components/ui/modal";
 import { SidePanel } from "@/components/ui/side-panel";
 
@@ -24,6 +25,17 @@ export function GroupFormModal({ open, onOpenChange, group, onSaved }: GroupForm
   const { showAlert, showApiError } = useAlert();
   const [form, setForm] = React.useState(EMPTY_FORM);
   const [submitting, setSubmitting] = React.useState(false);
+
+  const nameTranslate = useAutoTranslate({
+    sourceValue: form.englishName,
+    onTargetChange: (v) => setForm((f) => ({ ...f, tagalogName: v })),
+    token,
+  });
+  const descriptionTranslate = useAutoTranslate({
+    sourceValue: form.englishDescription,
+    onTargetChange: (v) => setForm((f) => ({ ...f, tagalogDescription: v })),
+    token,
+  });
 
   React.useEffect(() => {
     if (!open) return;
@@ -83,7 +95,7 @@ export function GroupFormModal({ open, onOpenChange, group, onSaved }: GroupForm
             onChange={(v) => setForm((f) => ({ ...f, englishName: v }))}
             required
           />
-          <TextField
+          <TextareaField
             label="Description"
             value={form.englishDescription}
             onChange={(v) => setForm((f) => ({ ...f, englishDescription: v }))}
@@ -95,14 +107,16 @@ export function GroupFormModal({ open, onOpenChange, group, onSaved }: GroupForm
           <TextField
             label="Name"
             value={form.tagalogName}
-            onChange={(v) => setForm((f) => ({ ...f, tagalogName: v }))}
+            onChange={nameTranslate.handleTargetChange}
             required
+            badge={nameTranslate.badge}
           />
-          <TextField
+          <TextareaField
             label="Description"
             value={form.tagalogDescription}
-            onChange={(v) => setForm((f) => ({ ...f, tagalogDescription: v }))}
+            onChange={descriptionTranslate.handleTargetChange}
             required
+            badge={descriptionTranslate.badge}
           />
         </ModalSection>
       </form>

@@ -37,8 +37,8 @@ export function EgovRepeaterPreview({ field, rows }: { field: DimField; rows: Re
       hasValue
       disableClickCascade
       badge={
-        <Badge variant="secondary" className="gap-1 border border-border bg-background text-[10px] text-muted-foreground shadow-sm">
-          <Lock className="size-2.5" /> eGovPH
+        <Badge variant="secondary" className="gap-0.5 border border-border bg-background px-1.5 py-0 text-[9px] text-muted-foreground shadow-sm">
+          <Lock className="size-2" /> eGovPH
         </Badge>
       }
     >

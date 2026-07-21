@@ -3,6 +3,7 @@ import {
   createBenefitBundle as createBenefitBundleService,
   editBenefitBundle as editBenefitBundleService,
 } from "../services/benefitBundle.service.js";
+import { notifyEligibleUsersOfNewBenefit } from "../services/benefitNotification.service.js";
 import { handleApiError } from "../utils/errorMapping.util.js";
 import { sendSuccess, sendUnauthorized } from "../utils/apiResponse.util.js";
 
@@ -27,6 +28,12 @@ export const createBenefitBundle = async (req: Request, res: Response) => {
     if (!req.user) return sendUnauthorized(res);
 
     const bundle = await createBenefitBundleService(req.body, req.user);
+
+    // Fire-and-forget — not awaited, so a slow/failing eGov SMS push never delays or fails
+    // this response. See benefitNotification.service.ts for the per-user isolation inside.
+    notifyEligibleUsersOfNewBenefit(bundle.id, bundle.name).catch((error) =>
+      console.error(`[BenefitBundleController] notifyEligibleUsersOfNewBenefit failed for benefit ${bundle.id}:`, error),
+    );
 
     return sendSuccess(res, 201, "Benefit created successfully.", serializeBundle(bundle));
   } catch (error: any) {

@@ -35,13 +35,13 @@ export async function seedProfileFields() {
         tagalogDescription: def.tagalogDescription,
         classification: "GLOBAL",
         default: true,
-        // Every profile field is a system-shipped default — but "Occupation" isn't
-        // actually eGovPH-sourced, we authored its option list ourselves, so it's the one
-        // exception left editable/unlocked for logged-in users (see DimField.eGovField /
-        // FieldInput.tsx's disabled check). Everything else here — including the
-        // additional_information-block fields (Marital Status, Educational Attainment,
-        // ...) — really is synced from eGov, so it stays locked like the rest.
-        eGovField: def.englishName !== "Occupation",
+        // Every profile field here is both a system-shipped default AND genuinely
+        // eGovPH-sourced — locked from editing on the public form (FieldInput.tsx's
+        // disabled check) and shown with the "Synced from eGovPH" badge. Includes
+        // "Occupation": its option list is self-authored (not eGov's own codes), but the raw
+        // eGov value is still resolved onto one of those options at sync time — see
+        // resolveEgovOccupationValues in lib/egov-profile-map.ts.
+        eGovField: true,
         required: def.required,
         notConditional: def.notConditional,
         sortOrder: def.sortOrder,

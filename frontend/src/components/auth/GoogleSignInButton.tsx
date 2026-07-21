@@ -66,11 +66,19 @@ export function GoogleSignInButton() {
           },
         });
 
+        // GIS's button renders as a fixed-pixel-width iframe (no "100%"/"auto" option in
+        // its API) — a hardcoded 320 made it a different width than the full-width eGovPH
+        // button / "Continue without signing in" link beside it whenever the column wasn't
+        // exactly 320px. Measuring the actual container width here (it's `w-full`, so this
+        // reflects the real available width) keeps all three visually matched. GIS caps
+        // this at ~400px internally, so no extra clamping needed here.
+        const measuredWidth = containerRef.current.clientWidth || 320;
+
         window.google.accounts.id.renderButton(containerRef.current, {
           theme: "outline",
           size: "large",
           shape: "pill",
-          width: 320,
+          width: measuredWidth,
         });
       })
       .catch(() => setError("Could not load Google Sign-In."));
@@ -89,8 +97,8 @@ export function GoogleSignInButton() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div ref={containerRef} />
+    <div className="flex w-full flex-col items-center gap-2">
+      <div ref={containerRef} className="flex w-full justify-center" />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

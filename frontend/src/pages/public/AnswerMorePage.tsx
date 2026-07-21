@@ -60,10 +60,10 @@ export function AnswerMorePage() {
   };
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
       <ApplyChrome />
 
-      <section className="mx-auto max-w-4xl px-4 py-12 md:px-5 md:py-16">
+      <section className="mx-auto w-full max-w-4xl flex-1 px-4 py-12 md:px-5 md:py-16">
         <div className="mx-auto max-w-3xl">
           {pendingFields === null ? (
             <div className="clay flex items-center justify-center p-16 text-sm text-slate-500">

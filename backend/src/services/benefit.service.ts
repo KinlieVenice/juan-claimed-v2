@@ -2,6 +2,7 @@ import { prisma, Prisma } from "../utils/prisma.js";
 import {
   assertUserCanModifyBenefit,
   resolvePsgcCodesForUser,
+  isBenefitVisibleToScope,
 } from "./benefitLocation.service.js";
 import { getPsgcLocation } from "./psgc.service.js";
 import { fetchBenefitRuleTree } from "./benefitRuleGroup.service.js";
@@ -69,8 +70,12 @@ const enrichBenefitPsgcCodes = <T extends { benefitPsgcCodes: { psgcCode: string
 // Requirements/utilizations/how-to-applies included for their COUNTS on the admin list —
 // full attachment hydration (a separate, non-relational lookup against the polymorphic
 // FctAttachment table) is only worth doing for a single benefit, see getBenefitById below.
-export const listBenefits = async () => {
-  return prisma.fctBenefit.findMany({
+//
+// `scopeFilterUser` narrows the result to only benefits relevant to that user's own
+// jurisdiction (see isBenefitVisibleToScope) — passed for the Agent-side admin "Benefit"
+// module (Superadmin/public/guest listings stay unfiltered, the full national catalog).
+export const listBenefits = async (scopeFilterUser?: { scope?: { value: string } | null; psgcCode: string | null }) => {
+  const benefits = await prisma.fctBenefit.findMany({
     where: { deletedAt: null },
     include: {
       benefitPsgcCodes: { where: { deletedAt: null }, include: { scope: true } },
@@ -81,6 +86,9 @@ export const listBenefits = async () => {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  if (!scopeFilterUser) return benefits;
+  return benefits.filter((b) => isBenefitVisibleToScope(b, scopeFilterUser));
 };
 
 // FctAttachment isn't a direct Prisma relation on Requirement/Utilization/HowToApply (it's

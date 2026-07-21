@@ -173,6 +173,16 @@ const resolveAnchor = async (
     return { anchorFieldId: null, classification: submittedClassification }; // stale anchor to a since-deleted field -> detach
   }
 
+  // Global fields are eGovPH-synced/locked (see requireFieldClassificationRole.middleware.ts)
+  // — anchoring used to silently CONVERT the anchoring field's own classification to match
+  // its target's, which was a backdoor around that lock (a Follow-Up field anchored to a
+  // Global one would itself become Global). Anchoring to Global is only still valid for a
+  // field that's already Global itself (e.g. an existing Global field pinned under another).
+  if (anchorTarget.classification === "GLOBAL" && submittedClassification !== "GLOBAL") {
+    console.error(`[FieldService] Rejected: a ${submittedClassification} field cannot anchor to Global field "${nextAnchorFieldId}" — Global fields are locked.`);
+    throw new Error("ANCHOR_TARGET_CANNOT_BE_GLOBAL");
+  }
+
   const tree = submittedTree ?? (fieldId ? await fetchDynamicRuleGroupTreeNormalizedWith(db, fieldId) : null);
   const referencedIds = tree ? collectReferencedFieldIds(tree) : new Set<string>();
 

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { ShieldCheck, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { getAdminNav, isNavGroup, type NavItem } from "@/lib/nav";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -43,14 +43,9 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-dvh w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex shrink-0 items-center gap-2 px-5 py-5">
-        <div className="flex size-9 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
-          <ShieldCheck className="size-5" />
-        </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">Juan-Claimed</p>
-          <p className="text-[11px] text-sidebar-foreground/60">Admin Console</p>
-        </div>
+      <div className="flex shrink-0 flex-col gap-1 px-5 py-5">
+        <img src="/logo.png" alt="JuanClaimed" className="h-8 w-auto" />
+        <p className="text-[11px] text-sidebar-foreground/60">Admin Console</p>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 thin-scrollbar">

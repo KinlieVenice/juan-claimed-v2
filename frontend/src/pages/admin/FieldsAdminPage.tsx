@@ -11,7 +11,12 @@ import { FieldFormModal } from "@/components/admin/FieldFormModal";
 
 export function FieldsAdminPage() {
   const { token, role } = useAuth();
-  const canCreateGlobal = role === "SUPERADMIN";
+  // Global fields are eGovPH-synced/locked and shipped once at seed time — nobody, not even
+  // Superadmin, may create a new one anymore (enforced server-side too, see
+  // requireFieldClassificationRole.middleware.ts). Reordering the EXISTING Global fields'
+  // display order is a separate, still-allowed capability for Superadmin — not "authoring".
+  const canCreateGlobal = false;
+  const canReorderGlobal = role === "SUPERADMIN";
   const canCreateFollowUp = role === "SUPERADMIN" || role === "AGENT";
 
   const [tab, setTab] = React.useState<FieldClassification>("GLOBAL");
@@ -106,8 +111,7 @@ export function FieldsAdminPage() {
             onReorder={(ids) => handleReorder("GLOBAL", ids)}
             onEdit={openEdit}
             onView={openView}
-            canReorder={canCreateGlobal}
-            emptyAction={canCreateGlobal ? { label: "Add Field", onClick: () => openCreate("GLOBAL") } : undefined}
+            canReorder={canReorderGlobal}
           />
         </TabsContent>
 

@@ -19,8 +19,8 @@ export interface FieldInputProps {
 }
 
 const DEFAULT_BADGE = (
-  <Badge variant="secondary" className="gap-1 border border-border bg-background text-[10px] text-muted-foreground shadow-sm">
-    <Lock className="size-2.5" /> eGovPH
+  <Badge variant="secondary" className="gap-0.5 border border-border bg-background px-1.5 py-0 text-[9px] text-muted-foreground shadow-sm">
+    <Lock className="size-2" /> eGovPH
   </Badge>
 );
 
@@ -279,7 +279,7 @@ function BooleanInput({
         <label className="text-sm font-medium text-foreground">
           {field.englishName}
           {field.required && <span className="text-destructive"> *</span>}
-          {field.tagalogName && <span className="ml-1 text-[9px] font-normal italic text-muted-foreground/70">{field.tagalogName}</span>}
+          {field.tagalogName && <span className="ml-1.5 text-[9px] font-normal text-muted-foreground/70 italic">({field.tagalogName})</span>}
         </label>
         {badge}
       </div>

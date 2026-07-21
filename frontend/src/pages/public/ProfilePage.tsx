@@ -4,8 +4,9 @@ import { Loader2, UserRound, Pencil, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAnswers } from "@/lib/answers-store";
 import { getFields } from "@/services/fields.service";
+import { getFieldOptions } from "@/services/fieldOptions.service";
 import { renderableFields } from "@/lib/field-visibility";
-import { mapEgovProfileToFieldValues, getEgovRepeaterRows } from "@/lib/egov-profile-map";
+import { mapEgovProfileToFieldValues, resolveEgovOccupationValues, getEgovRepeaterRows } from "@/lib/egov-profile-map";
 import { FieldForm } from "@/components/fields/FieldForm";
 import { EmptyState } from "@/components/EmptyState";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,7 +41,32 @@ export function ProfilePage() {
   // comment) — this fills the same-shaped gap from the live session profile instead, purely
   // for display. DB values still win if both exist (spread order below), though in
   // practice an eGov-sourced field is locked (FieldInput.tsx) so nothing ever writes one.
-  const egovValues = React.useMemo(() => mapEgovProfileToFieldValues(fields ?? [], egovProfile), [fields, egovProfile]);
+  const simpleEgovValues = React.useMemo(() => mapEgovProfileToFieldValues(fields ?? [], egovProfile), [fields, egovProfile]);
+
+  // Split out from simpleEgovValues because it needs Occupation's real DimFieldOption rows
+  // (an async fetch) to match against — see resolveEgovOccupationValues.
+  const [egovOccupationValues, setEgovOccupationValues] = React.useState<Record<string, unknown>>({});
+  React.useEffect(() => {
+    const occupationField = fields?.find((f) => f.englishName === "Occupation");
+    if (!occupationField || !egovProfile) {
+      setEgovOccupationValues({});
+      return;
+    }
+    const pleaseSpecifyField = fields?.find((f) => f.englishName === "Please Specify Occupation");
+    let cancelled = false;
+    getFieldOptions(occupationField.id, token).then((options) => {
+      if (cancelled) return;
+      setEgovOccupationValues(resolveEgovOccupationValues(egovProfile, options, occupationField.id, pleaseSpecifyField?.id ?? null));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fields, egovProfile, token]);
+
+  const egovValues = React.useMemo(
+    () => ({ ...simpleEgovValues, ...egovOccupationValues }),
+    [simpleEgovValues, egovOccupationValues],
+  );
   const displayValues = React.useMemo(() => ({ ...egovValues, ...answersMap }), [egovValues, answersMap]);
 
   // A row that exists but was left blank (null) isn't meaningfully "answered" yet — nothing
@@ -88,10 +114,10 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="apply-bg min-h-screen overflow-x-hidden text-slate-800">
+    <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
       <ApplyChrome />
 
-      <section className="mx-auto max-w-4xl px-4 py-12 md:px-5 md:py-16">
+      <section className="mx-auto w-full max-w-4xl flex-1 px-4 py-12 md:px-5 md:py-16">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Avatar className="size-14">

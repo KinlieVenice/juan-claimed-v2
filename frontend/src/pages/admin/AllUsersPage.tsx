@@ -45,7 +45,7 @@ export function AllUsersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground">All Users</h1>
-        <p className="text-sm text-muted-foreground">Everyone with a Juan-Claimed account, any role.</p>
+        <p className="text-sm text-muted-foreground">Everyone with a Juan Claimed account, any role.</p>
       </div>
 
       <DataTable

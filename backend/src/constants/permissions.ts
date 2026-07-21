@@ -39,4 +39,8 @@ export const PERMISSIONS = {
   EDIT_FIELDS: [UserRole.SUPERADMIN, UserRole.AGENT],
   DELETE_FIELDS: [UserRole.SUPERADMIN],
   MANAGE_FIELD_HIERARCHIES: [UserRole.SUPERADMIN, UserRole.AGENT],
+
+  // Auto-translate (English -> Tagalog) while authoring fields/benefits/groups — same
+  // roles as everything else that can author those (SUPERADMIN covers MANAGE_GROUPS too).
+  USE_AI_TRANSLATOR: [UserRole.SUPERADMIN, UserRole.AGENT],
 };

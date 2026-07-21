@@ -13,7 +13,12 @@ export const listBenefits = async (req: Request, res: Response) => {
   try {
     if (!req.user) return sendUnauthorized(res);
 
-    const benefits = await listBenefitsService();
+    // The Agent-side admin "Benefit" module only shows benefits relevant to the agent's own
+    // jurisdiction (nationwide + anything scoped over their own location) — Superadmin (and
+    // regular USER, for its own separate eligibility-facing flow) keep seeing the full
+    // catalog unfiltered. See listBenefits/isBenefitVisibleToScope for the actual rule.
+    const scopeFilterUser = req.user.role === "AGENT" ? req.user : undefined;
+    const benefits = await listBenefitsService(scopeFilterUser);
 
     return sendSuccess(res, 200, "Benefits loaded successfully.", benefits);
   } catch (error: any) {
