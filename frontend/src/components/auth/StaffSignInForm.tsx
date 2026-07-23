@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,6 @@ import { TextField } from "@/components/ui/text-field";
 // USER accounts never have a password, they always come through Google or eGov.
 export function StaffSignInForm() {
   const { loginWithPassword } = useAuth();
-  const navigate = useNavigate();
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -20,8 +18,13 @@ export function StaffSignInForm() {
     setSubmitting(true);
     setError(null);
     try {
+      // No explicit navigate — /login's RequireRole guard (GUEST-only) redirects to the
+      // right role's home the instant this flips the session's role away from GUEST (see
+      // RequireRole.tsx's ROLE_HOME). An explicit navigate here used to race that redirect
+      // and lose, since the guard reacts to the role change before this continuation runs.
+      // (A forced password reset still wins over either — see App.tsx's ForceResetGate,
+      // which sits above RequireRole entirely.)
       await loginWithPassword(username, password);
-      navigate("/admin/benefits");
     } catch {
       setError("Incorrect username or password.");
     } finally {

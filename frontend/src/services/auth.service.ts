@@ -14,6 +14,11 @@ export interface AuthUser {
   scopeId: string | null;
   psgcCode: string | null;
   forceResetPassword: boolean;
+  /** Set only by a real eGov SSO login — distinguishes "real, verified identity" from
+   * googleId below (a mock stand-in for eGov, see demoPersonaFactory.ts). */
+  egovId: string | null;
+  /** Set only by a Google login. */
+  googleId: string | null;
 }
 
 // Mirrors backend/src/services/egovApi.service.ts's EgovProfile — the raw eGov SSO

@@ -83,21 +83,77 @@ const normalizeRuleTree = (node: any, ownerField: { id: string; fieldInputType: 
   };
 };
 
+// A benefit's eligibility condition needs its own throwaway single-node
+// FctDynamicRuleGroup/FctDynamicFieldCondition purely to satisfy the latter's required
+// dynamicRuleGroupId/fieldId columns (see benefitRuleGroup.service.ts's
+// buildBenefitRuleTree) — that comment's own words are "never reuses or touches any
+// FIELD's own real dynamicCondition tree", but a plain `findMany({where: {fieldId}})`
+// can't actually tell a throwaway group apart from a field's own real one: both have the
+// same fieldId and parentRuleGroupId (null). Without this filter, ANY benefit whose
+// eligibility tree references field X made GET /api/fields report X as having its own
+// self-authored dependency condition — which, for a field the benefit checks by EQUALS
+// (e.g. "Gender EQUALS Female"), reads as that field gating its OWN visibility on its own
+// answer, an impossible, self-hiding condition once actually answered.
+//
+// Detection: a throwaway root group's only leaf condition is always wrapped by a
+// DimBenefitFieldCondition (that's the entire reason it exists); a field's own real tree
+// is never wrapped that way. A group counts as throwaway only when it has at least one
+// condition of its own and EVERY one of them is wrapped — an empty group (no conditions at
+// all) is left alone rather than guessed at.
+async function excludeBenefitThrowawayGroups<G extends { id: string }, C extends { id: string; dynamicRuleGroupId: string }>(
+  db: DbClient,
+  groups: G[],
+  conditions: C[],
+): Promise<{ groups: G[]; conditions: C[] }> {
+  if (conditions.length === 0) return { groups, conditions };
+
+  const wrapped = await db.dimBenefitFieldCondition.findMany({
+    where: { benefitFieldConditionId: { in: conditions.map((c) => c.id) } },
+    select: { benefitFieldConditionId: true },
+  });
+  if (wrapped.length === 0) return { groups, conditions };
+  const wrappedIds = new Set(wrapped.map((w) => w.benefitFieldConditionId));
+
+  const conditionsByGroup = new Map<string, C[]>();
+  for (const c of conditions) {
+    const bucket = conditionsByGroup.get(c.dynamicRuleGroupId);
+    if (bucket) bucket.push(c);
+    else conditionsByGroup.set(c.dynamicRuleGroupId, [c]);
+  }
+
+  const throwawayGroupIds = new Set(
+    groups
+      .filter((g) => {
+        const own = conditionsByGroup.get(g.id) ?? [];
+        return own.length > 0 && own.every((c) => wrappedIds.has(c.id));
+      })
+      .map((g) => g.id),
+  );
+  if (throwawayGroupIds.size === 0) return { groups, conditions };
+
+  return {
+    groups: groups.filter((g) => !throwawayGroupIds.has(g.id)),
+    conditions: conditions.filter((c) => !throwawayGroupIds.has(c.dynamicRuleGroupId)),
+  };
+}
+
 // FETCH DYNAMIC RULE GROUP TREE — "With" variant takes an explicit db client so it can
 // participate in a caller's own transaction, same pattern as every other service's bulk
 // "...With(db, ...)" functions.
 export const fetchDynamicRuleGroupTreeWith = async (db: DbClient, fieldId: string) => {
-  const allGroups = await db.fctDynamicRuleGroup.findMany({
+  const rawGroups = await db.fctDynamicRuleGroup.findMany({
     where: { fieldId },
     include: { field: { include: { fieldInputType: true } } },
   });
 
-  const groupIds = allGroups.map((g) => g.id);
+  const rawGroupIds = rawGroups.map((g) => g.id);
 
-  const allConditions = await db.fctDynamicFieldCondition.findMany({
-    where: { dynamicRuleGroupId: { in: groupIds } },
+  const rawConditions = await db.fctDynamicFieldCondition.findMany({
+    where: { dynamicRuleGroupId: { in: rawGroupIds } },
     include: { fieldConditionOperator: true, conditionField: { include: { fieldInputType: true } } },
   });
+
+  const { groups: allGroups, conditions: allConditions } = await excludeBenefitThrowawayGroups(db, rawGroups, rawConditions);
 
   return buildRuleGroupTree(allGroups, allConditions, "dynamicRuleGroupId");
 };
@@ -122,17 +178,19 @@ export const fetchDynamicRuleGroupTree = async (fieldId: string): Promise<Client
 // intentionally NOT pre-filtered per field before buildRuleGroupTree — each group's own
 // conditions are picked out by dynamicRuleGroupId inside buildRuleGroupTree itself.
 export const fetchDynamicRuleGroupTreesForFieldsWith = async (db: DbClient, fieldIds: string[]) => {
-  const allGroups = await db.fctDynamicRuleGroup.findMany({
+  const rawGroups = await db.fctDynamicRuleGroup.findMany({
     where: { fieldId: { in: fieldIds } },
     include: { field: { include: { fieldInputType: true } } },
   });
 
-  const groupIds = allGroups.map((g) => g.id);
+  const rawGroupIds = rawGroups.map((g) => g.id);
 
-  const allConditions = await db.fctDynamicFieldCondition.findMany({
-    where: { dynamicRuleGroupId: { in: groupIds } },
+  const rawConditions = await db.fctDynamicFieldCondition.findMany({
+    where: { dynamicRuleGroupId: { in: rawGroupIds } },
     include: { fieldConditionOperator: true, conditionField: { include: { fieldInputType: true } } },
   });
+
+  const { groups: allGroups, conditions: allConditions } = await excludeBenefitThrowawayGroups(db, rawGroups, rawConditions);
 
   const groupsByField = new Map<string, typeof allGroups>();
   for (const group of allGroups) {

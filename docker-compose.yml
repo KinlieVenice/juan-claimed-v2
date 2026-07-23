@@ -63,6 +63,7 @@ services:
       # Client IDs are meant to be public (unlike JWT_SECRET/partner_secret) — safe to
       # expose to the browser bundle via Vite's VITE_ prefix convention.
       VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      VITE_UNLOCK_GOOGLE_SYNCED_FIELDS: ${UNLOCK_GOOGLE_SYNCED_FIELDS}
     volumes:
       - ./frontend:/app
       - /app/node_modules

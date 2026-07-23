@@ -60,11 +60,11 @@ function App() {
             <AuthGate>
               <ForceResetGate>
                 <Routes>
-                  <Route element={<RequireRole allow={["GUEST"]} redirectTo="/" />}>
+                  <Route element={<RequireRole allow={["GUEST"]} />}>
                     <Route path="/login" element={<LoginPage />} />
                   </Route>
 
-                  <Route element={<RequireRole allow={["SUPERADMIN", "AGENT"]} redirectTo="/" />}>
+                  <Route element={<RequireRole allow={["SUPERADMIN", "AGENT"]} />}>
                     <Route path="/reset-password" element={<ResetPasswordPage />} />
                   </Route>
 
@@ -85,7 +85,7 @@ function App() {
                     </Route>
                   </Route>
 
-                  <Route element={<RequireRole allow={["SUPERADMIN", "AGENT"]} redirectTo="/" />}>
+                  <Route element={<RequireRole allow={["SUPERADMIN", "AGENT"]} />}>
                     <Route path="/admin" element={<AdminLayout />}>
                       <Route element={<RequireRole allow={["SUPERADMIN"]} redirectTo="/admin/benefits" />}>
                         <Route path="users" element={<AllUsersPage />} />

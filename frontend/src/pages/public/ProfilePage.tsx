@@ -6,7 +6,8 @@ import { useAnswers } from "@/lib/answers-store";
 import { getFields } from "@/services/fields.service";
 import { getFieldOptions } from "@/services/fieldOptions.service";
 import { renderableFields } from "@/lib/field-visibility";
-import { mapEgovProfileToFieldValues, resolveEgovOccupationValues, getEgovRepeaterRows } from "@/lib/egov-profile-map";
+import { isEgovFieldLocked } from "@/lib/egov-field-lock";
+import { mapEgovProfileToFieldValues, resolveEgovOccupationValues } from "@/lib/egov-profile-map";
 import { FieldForm } from "@/components/fields/FieldForm";
 import { EmptyState } from "@/components/EmptyState";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,8 +27,8 @@ import type { DimField } from "@/types/domain";
 // draft state that doesn't exist yet anywhere in the app.
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { user, token, egovProfile } = useAuth();
-  const { answers, groups, answersMap, submit, loading } = useAnswers();
+  const { user, token, role, egovProfile } = useAuth();
+  const { answersMap, submit, loading } = useAnswers();
   const [fields, setFields] = React.useState<DimField[] | null>(null);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
@@ -37,10 +38,14 @@ export function ProfilePage() {
     getFields(token).then(setFields);
   }, [token]);
 
-  // eGov SSO never writes a real FctUserFieldAnswer row (see lib/auth.tsx's egovProfile
-  // comment) — this fills the same-shaped gap from the live session profile instead, purely
-  // for display. DB values still win if both exist (spread order below), though in
-  // practice an eGov-sourced field is locked (FieldInput.tsx) so nothing ever writes one.
+  // A real eGov SSO login DOES write real FctUserFieldAnswer rows now (see
+  // egovAnswerSync.service.ts, run server-side on every login) — this client-side mapping
+  // is a same-shaped FALLBACK for whenever that hasn't happened yet (e.g. the answer sync
+  // partially failed for one field). Only ever populates anything for an eGov session —
+  // egovProfile is eGov-only client state (loginWithGoogle's response never sets it, see
+  // lib/auth.tsx's applyLogin), so for a Google session this is always `{}` and the DB (a
+  // demo persona's seeded answers, see demoPersonaFactory.ts) is the only source. DB values
+  // always win when both exist (spread order below).
   const simpleEgovValues = React.useMemo(() => mapEgovProfileToFieldValues(fields ?? [], egovProfile), [fields, egovProfile]);
 
   // Split out from simpleEgovValues because it needs Occupation's real DimFieldOption rows
@@ -69,27 +74,12 @@ export function ProfilePage() {
   );
   const displayValues = React.useMemo(() => ({ ...egovValues, ...answersMap }), [egovValues, answersMap]);
 
-  // A row that exists but was left blank (null) isn't meaningfully "answered" yet — nothing
-  // worth showing/editing here until it's actually filled in via Answer More.
-  const answeredFieldIds = React.useMemo(() => {
-    const ids = new Set(answers.filter((a) => a.repeaterGroupId === null && a.value !== null).map((a) => a.fieldId));
-    for (const fieldId of Object.keys(egovValues)) ids.add(fieldId);
-    return ids;
-  }, [answers, egovValues]);
-
-  // Unanswered FOLLOW_UP fields never show here — only via Answer More. A field earns its
-  // place on Profile either by having a direct answer, or (for REPEATER_GROUP) by having
-  // at least one row started — either a real one (groups) or, for an eGovField repeater
-  // like Educational Attainment, a live eGov row (see FieldForm's EgovRepeaterPreview
-  // branch, which reads the exact same getEgovRepeaterRows this checks).
-  const profileFields = (fields ?? [])
-    .filter((f) => f.parentFieldId === null)
-    .filter((f) =>
-      f.fieldInputType.value === "REPEATER_GROUP"
-        ? groups.some((g) => g.fieldId === f.id) || !!(f.eGovField && getEgovRepeaterRows(f.englishName, egovProfile))
-        : answeredFieldIds.has(f.id),
-    )
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  // Every top-level field renders here, answered or not — Profile doubles as "fill in
+  // anything you haven't yet," not just a read-back of what's already answered. A
+  // REPEATER_GROUP field with zero rows/groups so far (e.g. Educational Attainment on a
+  // fresh account) still renders fine: RepeaterGroupInput/EgovRepeaterPreview already
+  // handle the empty state (same components FormPage's initial quiz starts every user at).
+  const profileFields = (fields ?? []).filter((f) => f.parentFieldId === null).sort((a, b) => a.sortOrder - b.sortOrder);
 
   const startEditing = () => {
     setDraft(displayValues);
@@ -106,7 +96,7 @@ export function ProfilePage() {
     e.preventDefault();
     setSaving(true);
     const answerable = renderableFields(profileFields, draft).filter(
-      (f) => !f.eGovField && f.fieldInputType.value !== "REPEATER_GROUP",
+      (f) => !isEgovFieldLocked(f, role, user) && f.fieldInputType.value !== "REPEATER_GROUP",
     );
     await submit(answerable.map((f) => ({ fieldId: f.id, value: draft[f.id] ?? null })));
     setSaving(false);

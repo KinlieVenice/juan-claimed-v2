@@ -496,7 +496,6 @@ function BenefitDetail({ benefit, onBack }: { benefit: any; onBack: () => void }
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xl">🇬🇧</span>
                       <h3 className="font-semibold text-[color:var(--color-ph-blue)]">English</h3>
                     </div>
                     <p className="text-sm text-slate-700 leading-relaxed md:text-base">
@@ -505,7 +504,6 @@ function BenefitDetail({ benefit, onBack }: { benefit: any; onBack: () => void }
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xl">🇵🇭</span>
                       <h3 className="font-semibold text-[color:var(--color-ph-red)]">Tagalog</h3>
                     </div>
                     <p className="text-sm text-slate-700 leading-relaxed md:text-base">

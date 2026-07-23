@@ -17,6 +17,11 @@ export interface AppUser {
   psgcCode: string | null;
   /** True right after a Superadmin password reset — the app redirects to /reset-password until this clears. */
   forceResetPassword: boolean;
+  /** Set only by a real eGov SSO login — see FieldInput.tsx's eGovField lock, which always
+   * stays locked for this, regardless of VITE_UNLOCK_GOOGLE_SYNCED_FIELDS. */
+  egovId: string | null;
+  /** Set only by a Google login (a mock stand-in for eGov, see demoPersonaFactory.ts). */
+  googleId: string | null;
 }
 
 interface AuthContextValue {
@@ -54,6 +59,8 @@ const toAppUser = (u: authService.AuthUser): AppUser => ({
   scopeId: u.scopeId,
   psgcCode: u.psgcCode,
   forceResetPassword: u.forceResetPassword,
+  egovId: u.egovId,
+  googleId: u.googleId,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

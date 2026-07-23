@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,6 @@ import {
 // touches this component — POST /api/auth/egov's contract doesn't change.
 export function EgovSignInButton() {
   const { loginWithEgov } = useAuth();
-  const navigate = useNavigate();
   const [open, setOpen] = React.useState(false);
   const [code, setCode] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -33,9 +31,12 @@ export function EgovSignInButton() {
     setSubmitting(true);
     setError(null);
     try {
+      // No explicit navigate — /login's RequireRole guard (GUEST-only) redirects to the
+      // right role's home the instant this flips the session's role away from GUEST (see
+      // RequireRole.tsx's ROLE_HOME). An explicit navigate here used to race that redirect
+      // and lose, since the guard reacts to the role change before this continuation runs.
       await loginWithEgov(code.trim());
       setOpen(false);
-      navigate("/my-benefits");
     } catch {
       setError("Could not verify that exchange code with eGovPH. Please try again.");
     } finally {

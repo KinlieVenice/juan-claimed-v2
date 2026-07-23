@@ -157,3 +157,62 @@ export async function resolvePsgcCodeName(code: string): Promise<string | null> 
   const region = (await getRegions()).find((r) => r.code === code);
   return region?.name ?? null;
 }
+
+/** Every level's code+name, walked up from a bare leaf (barangay) PSGC code — the reverse
+ * of PsgcPhLocationHierarchyField.tsx's own forward pick. A real saved Residence answer is
+ * just that one leaf code (see backend/src/services/fieldAnswer.service.ts's
+ * encodeFieldValue — same "no reverse lookup" gap noted there), so FieldInput.tsx needs this
+ * to pre-fill the picker with every ancestor instead of opening empty. Tries "province"
+ * grouping first, falling back to "district" (Metro Manila cities — Quezon City, Manila,
+ * etc. — sit directly under a district, not a province; PsgcAdminMode supports both, the
+ * picker just defaults its own toggle to "province" when a caller doesn't offer the switch). */
+export async function resolvePsgcAddressValue(barangayCode: string): Promise<{
+  mode: PsgcAdminMode;
+  regionCode: string;
+  regionName: string;
+  subdivisionCode: string;
+  subdivisionName: string;
+  cityMunicipalityCode: string;
+  cityMunicipalityName: string;
+  barangayCode: string;
+  barangayName: string;
+  leafCode: string;
+  leafName: string;
+} | null> {
+  try {
+    const barangay = await getBarangayByCode(barangayCode);
+    // The live API returns `false` (not null/undefined) for an inapplicable parent code
+    // (e.g. a municipality's barangay has cityCode: false) — `||`, not `??`, is required
+    // here to actually fall through on that.
+    const cityCode = barangay.cityCode || barangay.municipalityCode;
+    if (!cityCode) return null;
+
+    const city = await getCityMunicipalityByCode(cityCode);
+    const provinceCode = city.provinceCode || barangay.provinceCode;
+    const districtCode = city.districtCode || barangay.districtCode;
+
+    const mode: PsgcAdminMode = provinceCode ? "province" : "district";
+    const subdivisionCode = provinceCode || districtCode;
+    if (!subdivisionCode) return null;
+
+    const subdivision = mode === "district" ? await getDistrictByCode(subdivisionCode) : await getProvinceByCode(subdivisionCode);
+    const region = (await getRegions()).find((r) => r.code === subdivision.regionCode);
+    if (!region) return null;
+
+    return {
+      mode,
+      regionCode: region.code,
+      regionName: region.name,
+      subdivisionCode: subdivision.code,
+      subdivisionName: subdivision.name,
+      cityMunicipalityCode: city.code,
+      cityMunicipalityName: city.name,
+      barangayCode: barangay.code,
+      barangayName: barangay.name,
+      leafCode: barangay.code,
+      leafName: barangay.name,
+    };
+  } catch {
+    return null;
+  }
+}

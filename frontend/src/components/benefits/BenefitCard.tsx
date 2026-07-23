@@ -20,7 +20,7 @@ export function BenefitCard({ benefit, status, pendingCount }: { benefit: FctBen
   const navigate = useNavigate();
 
   return (
-    <ClayCard variant="plain" className="p-6" onClick={() => navigate(`/benefits/${benefit.id}`)}>
+    <ClayCard variant="plain" className="flex h-full flex-col p-6" onClick={() => navigate(`/benefits/${benefit.id}`)}>
       <div className="flex items-start justify-between gap-3">
         <div className="clay-yellow grid h-12 w-12 shrink-0 place-items-center text-2xl">{emojiFor(benefit.id)}</div>
         <span
@@ -36,7 +36,7 @@ export function BenefitCard({ benefit, status, pendingCount }: { benefit: FctBen
       <h3 className="mt-3 font-display text-xl font-bold text-slate-900">{benefit.name}</h3>
       <p className="mt-1 line-clamp-2 text-sm text-slate-600">{benefit.englishDescription}</p>
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-auto flex items-center justify-between pt-4">
         {status === "MATCHED" ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--color-success,#16803c)]">
             <Sparkles className="size-3.5" /> You qualify
@@ -57,7 +57,7 @@ export function BenefitCard({ benefit, status, pendingCount }: { benefit: FctBen
 // state doesn't visibly jump/reflow into a differently-shaped layout once real cards land.
 export function BenefitCardSkeleton() {
   return (
-    <ClayCard variant="plain" className="p-6">
+    <ClayCard variant="plain" className="flex h-full flex-col p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-slate-200" />
         <div className="h-5 w-20 shrink-0 animate-pulse rounded-full bg-slate-200" />
@@ -69,7 +69,7 @@ export function BenefitCardSkeleton() {
         <div className="h-4 w-2/3 animate-pulse rounded-md bg-slate-200" />
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-auto flex items-center justify-between pt-4">
         <div className="h-4 w-28 animate-pulse rounded-md bg-slate-200" />
         <div className="h-4 w-20 animate-pulse rounded-md bg-slate-200" />
       </div>

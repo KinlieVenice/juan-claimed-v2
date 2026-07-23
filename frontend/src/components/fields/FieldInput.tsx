@@ -2,13 +2,14 @@ import * as React from "react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { isEgovFieldLocked } from "@/lib/egov-field-lock";
 import { getFieldOptions } from "@/services/fieldOptions.service";
 import { getHierarchies } from "@/services/fieldHierarchy.service";
 import { textError, numberError, moneyError, dateError, dateNativeBounds, multiSelectError } from "@/lib/fieldValidation";
 import type { DimField, DimFieldHierarchy, DimFieldOption } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { TextField, TextareaField, SelectField, MultiSelectField, DurationField, HierarchySelectField, type DurationValue } from "@/components/ui/text-field";
-import { PsgcPhLocationHierarchyField, type PsgcAddressValue } from "@/components/fields/PsgcPhLocationHierarchyField";
+import { ResidencePsgcField, type PsgcAddressValue } from "@/components/fields/PsgcPhLocationHierarchyField";
 
 const PH_LOCATION_HIERARCHY_KEY = "PH_LOCATION";
 
@@ -38,13 +39,10 @@ const DEFAULT_BADGE = (
 // plus an inline error message, so an invalid answer is caught before submit instead of
 // only surfacing as a 400 from the server.
 export function FieldInput({ field, value, onChange }: FieldInputProps) {
-  const { token, role } = useAuth();
-  // eGovField fields are only locked/synced for someone who actually has an eGov-backed
-  // session to sync from. A guest ("public/no account" flow) has no account at all — there
-  // is nothing to sync, so locking the field just makes it permanently unanswerable instead
-  // of "pre-filled." Real accounts (USER/staff) keep the lock, matching the eventual
-  // real-eGov-sync / Google-SSO-seeded-mock behavior described in the flow spec.
-  const disabled = field.eGovField && role !== "GUEST";
+  const { token, role, user } = useAuth();
+  // See lib/egov-field-lock.ts — the single source of truth this and every submit-time
+  // "don't send a locked field's value" filter both defer to, so they can't drift apart.
+  const disabled = isEgovFieldLocked(field, role, user);
   const badge = disabled ? DEFAULT_BADGE : undefined;
   const required = field.required;
   const inputType = field.fieldInputType.value;
@@ -192,19 +190,16 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       // the selected barangay's PSGC code (a plain string), same as any other
       // HIERARCHY_SELECT value — condition evaluation needs no special handling.
       if (hierarchy?.key === PH_LOCATION_HIERARCHY_KEY) {
-        // A real DB answer is just the leaf PSGC code (a plain string) — there's no reverse
-        // PSGC lookup to rebuild region/province/city ancestors from that alone, so it opens
-        // empty even when answered (picking again re-derives and overwrites the same code).
-        // An eGov-sourced Residence is different: lib/egov-profile-map.ts's
-        // buildResidenceValue already hands over a full PsgcAddressValue (every level's code
-        // AND name, no lookup needed), so that one pre-fills directly — distinguish by shape,
-        // since a plain leaf-code string and a full object both flow through this same prop.
-        const psgcValue = value && typeof value === "object" ? (value as PsgcAddressValue) : null;
+        // ResidencePsgcField resolves a plain leaf-code string (a real DB answer) into the
+        // full PsgcAddressValue the picker needs to pre-fill, via a live reverse PSGC
+        // lookup — see its own comment. An eGov-sourced Residence is already a full
+        // PsgcAddressValue (lib/egov-profile-map.ts's buildResidenceValue), so that one
+        // passes through untouched.
         return (
-          <PsgcPhLocationHierarchyField
+          <ResidencePsgcField
             label={field.englishName}
             sublabel={field.tagalogName}
-            value={psgcValue}
+            value={value}
             onChange={(v: PsgcAddressValue | null) => onChange(v?.barangayCode ?? null)}
             required={required}
             disabled={disabled}

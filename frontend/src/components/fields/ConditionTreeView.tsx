@@ -1,8 +1,22 @@
 import * as React from "react";
+import { Check, X, HelpCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { getFieldOptions } from "@/services/fieldOptions.service";
 import { formatConditionValue } from "@/lib/format-condition-value";
 import type { DimField, DimFieldConditionOperator, DimFieldHierarchy, DimFieldOption, FieldRuleTreeNode, FieldRuleTreeRoot, RuleTreeNode, RuleTreeRoot } from "@/types/domain";
+
+export type LeafEligibilityStatus = "MATCHED" | "NOT_ELIGIBLE" | "PENDING";
+
+// Plain Tailwind colors, not the clay-* utilities — this component is shared with the
+// admin-side field/benefit condition editors (FieldFormModal/BenefitFormModal), which
+// never pass leafStatusByFieldId (no eligibility concept there) but shouldn't pull in the
+// user-side-only clay design system just because this file also renders on BenefitDetailsPage.
+const STATUS_ICON = { MATCHED: Check, NOT_ELIGIBLE: X, PENDING: HelpCircle } as const;
+const STATUS_COLOR: Record<LeafEligibilityStatus, string> = {
+  MATCHED: "bg-emerald-600 text-white",
+  NOT_ELIGIBLE: "bg-red-600 text-white",
+  PENDING: "bg-yellow-400 text-slate-900",
+};
 
 type AnyTreeNode = FieldRuleTreeNode | RuleTreeNode;
 type AnyGroupNode = Extract<AnyTreeNode, { kind: "group" }>;
@@ -20,9 +34,15 @@ interface ConditionTreeViewProps {
   /** Required for treeKind="field" whenever a leaf's conditionFieldId is null. */
   selfField?: DimField;
   emptyLabel?: string;
+  /** fieldId -> this applicant's live verdict for that leaf (benefitEligibility.service.ts's
+   * per-leaf breakdown) — when given, each leaf row gets a colored check/x/pending badge on
+   * the right. Omit entirely for the admin condition editors (FieldFormModal/
+   * BenefitFormModal), which have no applicant/eligibility concept to show. */
+  leafStatusByFieldId?: Record<string, LeafEligibilityStatus>;
 }
 
 interface ResolvedLeaf {
+  fieldId: string;
   fieldEn: string;
   fieldTl: string;
   operatorEn: string;
@@ -51,7 +71,15 @@ const resolveLeaf = (
   if (!field || !operator) return null;
 
   const value = formatConditionValue(field, operator, leaf.conditionFieldValue, optionsByFieldId[field.id] ?? [], hierarchies);
-  return { fieldEn: field.englishName, fieldTl: field.tagalogName, operatorEn: operator.englishName, operatorTl: operator.tagalogName, valueEn: value.en, valueTl: value.tl };
+  return {
+    fieldId: field.id,
+    fieldEn: field.englishName,
+    fieldTl: field.tagalogName,
+    operatorEn: operator.englishName,
+    operatorTl: operator.tagalogName,
+    valueEn: value.en,
+    valueTl: value.tl,
+  };
 };
 
 // Every SINGLE_SELECT/MULTI_SELECT field referenced anywhere in the tree, walked once up
@@ -72,7 +100,16 @@ const collectSelectFieldIds = (node: AnyTreeNode, treeKind: "field" | "benefit",
 // form, not a details view). Each leaf renders as "Field Operator Value" in English, with
 // the Tagalog equivalent italicized in parens underneath; groups join their children with
 // an OR (O) / AND (AT) connector and wrap in visible parentheses once nested.
-export function ConditionTreeView({ tree, treeKind, fields, operators, hierarchies, selfField, emptyLabel = "No conditions set." }: ConditionTreeViewProps) {
+export function ConditionTreeView({
+  tree,
+  treeKind,
+  fields,
+  operators,
+  hierarchies,
+  selfField,
+  emptyLabel = "No conditions set.",
+  leafStatusByFieldId,
+}: ConditionTreeViewProps) {
   const { token } = useAuth();
   const [optionsByFieldId, setOptionsByFieldId] = React.useState<Record<string, DimFieldOption[]>>({});
 
@@ -100,6 +137,7 @@ export function ConditionTreeView({ tree, treeKind, fields, operators, hierarchi
       hierarchies={hierarchies}
       selfField={selfField}
       optionsByFieldId={optionsByFieldId}
+      leafStatusByFieldId={leafStatusByFieldId}
     />
   );
 }
@@ -113,6 +151,7 @@ function GroupView({
   hierarchies,
   selfField,
   optionsByFieldId,
+  leafStatusByFieldId,
 }: {
   node: AnyGroupNode;
   depth: number;
@@ -122,6 +161,7 @@ function GroupView({
   hierarchies: DimFieldHierarchy[];
   selfField: DimField | undefined;
   optionsByFieldId: Record<string, DimFieldOption[]>;
+  leafStatusByFieldId: Record<string, LeafEligibilityStatus> | undefined;
 }) {
   const connectorLabel = node.logicalOperator === "ALL" ? "AND (AT)" : "OR (O)";
 
@@ -142,6 +182,7 @@ function GroupView({
                 hierarchies={hierarchies}
                 selfField={selfField}
                 optionsByFieldId={optionsByFieldId}
+                leafStatusByFieldId={leafStatusByFieldId}
               />
             ) : (
               <LeafView
@@ -152,6 +193,7 @@ function GroupView({
                 hierarchies={hierarchies}
                 selfField={selfField}
                 optionsByFieldId={optionsByFieldId}
+                leafStatusByFieldId={leafStatusByFieldId}
               />
             )}
           </React.Fragment>
@@ -170,6 +212,7 @@ function LeafView({
   hierarchies,
   selfField,
   optionsByFieldId,
+  leafStatusByFieldId,
 }: {
   leaf: AnyLeafNode;
   treeKind: "field" | "benefit";
@@ -178,6 +221,7 @@ function LeafView({
   hierarchies: DimFieldHierarchy[];
   selfField: DimField | undefined;
   optionsByFieldId: Record<string, DimFieldOption[]>;
+  leafStatusByFieldId: Record<string, LeafEligibilityStatus> | undefined;
 }) {
   const resolved = resolveLeaf(leaf, treeKind, fields, operators, hierarchies, selfField, optionsByFieldId);
 
@@ -185,14 +229,24 @@ function LeafView({
     return <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground italic">Unresolved condition.</p>;
   }
 
+  const status = leafStatusByFieldId?.[resolved.fieldId];
+  const StatusIcon = status ? STATUS_ICON[status] : null;
+
   return (
-    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-      <p className="text-sm text-foreground">
-        {resolved.fieldEn} {resolved.operatorEn} {resolved.valueEn}
-      </p>
-      <p className="text-xs text-muted-foreground italic">
-        ({resolved.fieldTl} {resolved.operatorTl} {resolved.valueTl})
-      </p>
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+      <div className="flex-1">
+        <p className="text-sm text-foreground">
+          {resolved.fieldEn} {resolved.operatorEn} {resolved.valueEn}
+        </p>
+        <p className="text-xs text-muted-foreground italic">
+          ({resolved.fieldTl} {resolved.operatorTl} {resolved.valueTl})
+        </p>
+      </div>
+      {StatusIcon && (
+        <span className={`grid size-7 shrink-0 place-items-center rounded-full ${STATUS_COLOR[status!]}`}>
+          <StatusIcon className="size-4" />
+        </span>
+      )}
     </div>
   );
 }

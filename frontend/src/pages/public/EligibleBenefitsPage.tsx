@@ -4,6 +4,8 @@ import { Gift, Sparkles, FileText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAnswers } from "@/lib/answers-store";
 import { getEligibilityResults, type EligibilityResult } from "@/services/benefits.service";
+import { getFields } from "@/services/fields.service";
+import type { DimField } from "@/types/domain";
 import { BenefitCard, BenefitCardSkeleton } from "@/components/benefits/BenefitCard";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
 import { ClayCard } from "@/components/apply/ClayCard";
@@ -18,11 +20,13 @@ export function EligibleBenefitsPage() {
   const { token } = useAuth();
   const { isGuest, answersMap, repeaterRowsMap } = useAnswers();
   const [results, setResults] = React.useState<EligibilityResult[] | null>(null);
+  const [fields, setFields] = React.useState<DimField[] | null>(null);
 
   React.useEffect(() => {
     // Guests have no stored userId — their in-browser answers travel inline instead (see
     // benefits.service.ts's getEligibilityResults / lib/answers-store.tsx's guest branch).
     getEligibilityResults(token ?? undefined, isGuest ? { answers: answersMap, repeaterRows: repeaterRowsMap } : undefined).then(setResults);
+    getFields(token ?? undefined).then(setFields);
     // answersMap/repeaterRowsMap intentionally excluded from deps for the signed-in path
     // (server-evaluated, doesn't need a client re-check on every local state change); for
     // guests this still re-runs whenever isGuest/token settle, which is when it first loads.
@@ -32,6 +36,18 @@ export function EligibleBenefitsPage() {
   const matched = results?.filter((r) => r.status === "MATCHED") ?? [];
   const pending = results?.filter((r) => r.status === "PENDING") ?? [];
   const isLoading = results === null;
+
+  // pendingFieldIds (from the backend) doesn't distinguish GLOBAL vs FOLLOW_UP fields — it's
+  // just "whatever this benefit's tree still needs an answer for." Resolving classification
+  // here separates "hasn't done the initial quiz yet" (GLOBAL fields still pending — route to
+  // /form) from "already answered the base quiz, only LGU-specific extras remain" (route to
+  // /answer-more). Without this split, a brand-new applicant who hasn't touched /form at all
+  // saw the "Answer more" follow-up card (and AnswerMorePage rendering plain global fields
+  // like Date of Birth under "these extra answers could unlock more benefits" copy) instead
+  // of being pointed at the actual initial quiz.
+  const pendingFieldIds = new Set(pending.flatMap((r) => r.pendingFieldIds));
+  const pendingGlobalFields = fields?.filter((f) => pendingFieldIds.has(f.id) && f.classification === "GLOBAL") ?? [];
+  const hasPendingGlobal = pendingGlobalFields.length > 0;
 
   return (
     <div className="apply-bg flex min-h-screen flex-col overflow-x-hidden text-slate-800">
@@ -78,7 +94,7 @@ export function EligibleBenefitsPage() {
                   Complete the initial questionnaire so we can match you with benefits you may qualify for.
                 </p>
               </div>
-              {pending.length === 0 && (
+              {(pending.length === 0 || hasPendingGlobal) && (
                 <button
                   type="button"
                   onClick={() => navigate("/form")}
@@ -96,7 +112,32 @@ export function EligibleBenefitsPage() {
             </div>
           )}
 
-          {!isLoading && pending.length > 0 && (
+          {/* Covers the matched.length > 0 case — the "Go to the quiz" prompt inside the
+              empty state above only renders when there are zero matched benefits. A user
+              can already have some matches AND still have unanswered GLOBAL fields (e.g. an
+              eGov login that only synced part of their profile), so this needs its own spot
+              instead of being folded into that branch. */}
+          {!isLoading && matched.length > 0 && hasPendingGlobal && (
+            <ClayCard variant="blue" className="mt-12 flex flex-col items-center gap-4 p-10 text-center">
+              <div className="clay-yellow grid h-11 w-11 place-items-center">
+                <Gift className="size-5 text-[color:var(--color-ph-blue)]" />
+              </div>
+              <div>
+                <p className="font-display text-lg font-bold text-slate-900">There could be more waiting for you</p>
+                <p className="mt-1 max-w-md text-sm text-slate-700">Finish the initial questionnaire to see your full list of eligible benefits.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/form")}
+                className="clay-blue group inline-flex items-center gap-2 px-6 py-3 text-sm font-bold text-[color:var(--color-ph-blue)] transition hover:-translate-y-1"
+              >
+                Go to the quiz
+                <span className="transition group-hover:translate-x-1">→</span>
+              </button>
+            </ClayCard>
+          )}
+
+          {!isLoading && pending.length > 0 && !hasPendingGlobal && (
             <ClayCard variant="yellow" className="mt-12 flex flex-col items-center gap-4 p-10 text-center">
               <div className="clay grid h-11 w-11 place-items-center">
                 <Sparkles className="size-5 text-[color:var(--color-ph-blue)]" />

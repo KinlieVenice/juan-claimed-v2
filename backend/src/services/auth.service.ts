@@ -3,6 +3,7 @@ import { prisma } from "../utils/prisma.js";
 import { comparePassword, hashPassword, omitPassHash } from "../utils/password.js";
 import { signAuthToken } from "../utils/jwt.util.js";
 import { mintAccessToken, fetchProfile } from "./egovApi.service.js";
+import { syncEgovProfileToAnswers } from "./egovAnswerSync.service.js";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID as string;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -168,8 +169,21 @@ export const loginWithEgov = async (exchangeCode: string) => {
     throw new Error("FORBIDDEN: This account has been deactivated.");
   }
 
+  // Re-syncs the mapped global fields (Date of Birth, Residence, ...) into real
+  // FctUserFieldAnswer rows on EVERY login, not just account creation — eGov is the live
+  // source of truth and the profile can change between sessions; syncEgovProfileToAnswers
+  // is itself upsert-safe (find-then-update-or-create per field), so this never creates
+  // duplicates. Awaited (not fire-and-forget) so eligibility is already correct by the time
+  // the frontend's very next request (My Benefits) lands. Wrapped so a sync failure never
+  // blocks the login itself — worst case, that one field stays whatever it was before.
+  try {
+    await syncEgovProfileToAnswers(user.id, profile);
+  } catch (error) {
+    console.error(`[AuthService] Failed to sync eGov profile to answers for user ${user.id}:`, error);
+  }
+
   // The raw eGov profile carries a lot more than DimUser has columns for (address, PSGC
-  // codes, birth_date, signature, ...). Not persisted anywhere yet — handed back as-is so
-  // the frontend can hold onto it (session state) until how to use it is decided.
+  // codes, birth_date, signature, ...). Handed back as-is too so the frontend can still
+  // hold onto it (session state) for display purposes (e.g. ProfilePage's read-only view).
   return { token: signAuthToken(user.id), user: omitPassHash(user), egovProfile: profile };
 };

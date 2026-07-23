@@ -409,7 +409,7 @@ export const profileFields: ProfileFieldDef[] = [
         tagalogName: "Larangan ng Edukasyon",
         englishDescription: "Field/strand/course for this entry",
         tagalogDescription: "Larangan/strand/kurso para sa entry na ito",
-        inputType: "SINGLE_SELECT",
+        inputType: "TEXT",
         required: false,
         sortOrder: 4,
         configJson: null,

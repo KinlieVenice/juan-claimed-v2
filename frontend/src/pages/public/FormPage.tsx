@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { getFields } from "@/services/fields.service";
 import { useAnswers } from "@/lib/answers-store";
 import { renderableFields } from "@/lib/field-visibility";
+import { isEgovFieldLocked } from "@/lib/egov-field-lock";
 import { FieldForm } from "@/components/fields/FieldForm";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
 import { ClayCard } from "@/components/apply/ClayCard";
@@ -17,7 +18,7 @@ import type { DimField } from "@/types/domain";
 // unmodified, just sitting inside a clay card instead of a plain one.
 export function FormPage() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, role, user } = useAuth();
   const { answersMap, isGuest, submit } = useAnswers();
   const [globalFields, setGlobalFields] = React.useState<DimField[] | null>(null);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
@@ -45,15 +46,14 @@ export function FormPage() {
     setSubmitting(true);
     // Only what was actually rendered for this draft (renderableFields) gets saved — a
     // field a dynamicCondition kept hidden was never presented, so it must stay fully
-    // absent from UserFieldAnswers, not get a premature null row. eGovField fields are
-    // excluded for a real account: they're synced live from the identity provider (single
-    // source of truth), never stored here — see fieldAnswer.service.ts / FieldInput.tsx's
-    // badge. A guest has no identity provider to sync from at all (FieldInput.tsx leaves
-    // these unlocked for them for exactly that reason), so they're free to answer normally.
-    // REPEATER_GROUP fields have no scalar answer of their own (FieldForm's
-    // RepeaterGroupInput submits their rows separately) and must never appear in this array.
+    // absent from UserFieldAnswers, not get a premature null row. A locked eGovField field
+    // (see lib/egov-field-lock.ts) is excluded: it's synced live from the identity provider
+    // (single source of truth), never stored here — see fieldAnswer.service.ts /
+    // FieldInput.tsx's badge. REPEATER_GROUP fields have no scalar answer of their own
+    // (FieldForm's RepeaterGroupInput submits their rows separately) and must never appear
+    // in this array.
     const answerable = renderableFields(globalFields, draft).filter(
-      (f) => (isGuest || !f.eGovField) && f.fieldInputType.value !== "REPEATER_GROUP",
+      (f) => !isEgovFieldLocked(f, role, user) && f.fieldInputType.value !== "REPEATER_GROUP",
     );
     await submit(answerable.map((f) => ({ fieldId: f.id, value: draft[f.id] ?? null })));
     setSubmitting(false);

@@ -7,6 +7,7 @@ import {
   getSubdivisions,
   getCitiesMunicipalities,
   getBarangays,
+  resolvePsgcAddressValue,
   type PsgcAdminMode,
   type PsgcRegion,
   type PsgcProvince,
@@ -389,4 +390,48 @@ export function PsgcPhLocationHierarchyField({
       </div>
     </FloatingLabelField>
   );
+}
+
+interface ResidencePsgcFieldProps extends Omit<PsgcPhLocationHierarchyFieldProps, "value"> {
+  /** FieldInput.tsx's HIERARCHY_SELECT/PH_LOCATION branch hands this either a full
+   * PsgcAddressValue (eGov-sourced, or freshly picked this session) or a bare leaf PSGC
+   * code string (a real saved DB answer). */
+  value: unknown;
+}
+
+// Resolves a bare leaf-code string into a full PsgcAddressValue BEFORE mounting the actual
+// picker, so a previously-answered Residence pre-fills instead of opening empty. Can't do
+// this resolution inline inside PsgcPhLocationHierarchyField itself: that component only
+// ever reads `value` once, at mount, to seed its own internal state (see the "external
+// resets of value after mount won't retroactively change the open selects" note above) — so
+// the picker must not mount at all until resolution finishes, otherwise it'd mount empty and
+// the resolved value arriving a moment later would have no effect.
+export function ResidencePsgcField({ value, ...props }: ResidencePsgcFieldProps) {
+  const initialObjectValue = value && typeof value === "object" ? (value as PsgcAddressValue) : null;
+  const [resolvedValue, setResolvedValue] = React.useState<PsgcAddressValue | null>(initialObjectValue);
+  const [resolving, setResolving] = React.useState(typeof value === "string" && value.length > 0);
+
+  // Deliberately runs once, against whichever value this field FIRST mounted with — not on
+  // every `value` change. Once mounted, the picker below manages its own selection state
+  // (and reports it back out via onChange as a bare string, same as any real answer), so
+  // re-resolving on every subsequent render would be redundant at best.
+  React.useEffect(() => {
+    if (typeof value !== "string" || !value) return;
+    let cancelled = false;
+    resolvePsgcAddressValue(value).then((resolved) => {
+      if (cancelled) return;
+      setResolvedValue(resolved);
+      setResolving(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (resolving) {
+    return <div className="h-14 w-full animate-pulse rounded-lg bg-muted/60" />;
+  }
+
+  return <PsgcPhLocationHierarchyField {...props} value={resolvedValue} />;
 }

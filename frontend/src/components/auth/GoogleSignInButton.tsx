@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 
 declare global {
@@ -44,7 +43,6 @@ function loadGisScript(): Promise<void> {
 export function GoogleSignInButton() {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { loginWithGoogle } = useAuth();
-  const navigate = useNavigate();
   const [error, setError] = React.useState<string | null>(null);
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -60,9 +58,12 @@ export function GoogleSignInButton() {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response) => {
-            loginWithGoogle(response.credential)
-              .then(() => navigate("/my-benefits"))
-              .catch(() => setError("Could not sign in with Google. Please try again."));
+            // No explicit navigate on success — /login's RequireRole guard (GUEST-only)
+            // redirects to the right role's home the instant this flips the session's role
+            // away from GUEST (see RequireRole.tsx's ROLE_HOME). An explicit navigate here
+            // used to race that redirect and lose, since the guard reacts to the role
+            // change before this continuation runs — landing every fresh login back on "/".
+            loginWithGoogle(response.credential).catch(() => setError("Could not sign in with Google. Please try again."));
           },
         });
 
@@ -86,7 +87,7 @@ export function GoogleSignInButton() {
     return () => {
       cancelled = true;
     };
-  }, [clientId, loginWithGoogle, navigate]);
+  }, [clientId, loginWithGoogle]);
 
   if (!clientId) {
     return (

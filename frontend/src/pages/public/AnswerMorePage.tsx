@@ -6,6 +6,7 @@ import { getFields } from "@/services/fields.service";
 import { useAnswers } from "@/lib/answers-store";
 import { getEligibilityResults } from "@/services/benefits.service";
 import { renderableFields } from "@/lib/field-visibility";
+import { isEgovFieldLocked } from "@/lib/egov-field-lock";
 import type { DimField } from "@/types/domain";
 import { FieldForm } from "@/components/fields/FieldForm";
 import { ApplyChrome, ApplyFooter } from "@/components/apply/ApplyChrome";
@@ -17,8 +18,8 @@ import { ClayCard } from "@/components/apply/ClayCard";
 // unanswered fields here, so this never nags for an answer that can no longer change anything.
 export function AnswerMorePage() {
   const navigate = useNavigate();
-  const { token } = useAuth();
-  const { answersMap, repeaterRowsMap, isGuest, submit } = useAnswers();
+  const { token, role, user } = useAuth();
+  const { answers, answersMap, repeaterRowsMap, isGuest, submit } = useAnswers();
   const [pendingFields, setPendingFields] = React.useState<DimField[] | null>(null);
   const [pendingBenefitNames, setPendingBenefitNames] = React.useState<string[]>([]);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
@@ -31,7 +32,22 @@ export function AnswerMorePage() {
       async (results) => {
         const pending = results.filter((r) => r.status === "PENDING");
         const fieldIds = new Set(pending.flatMap((r) => r.pendingFieldIds));
-        const allFields = await getFields(token);
+        const allFields = await getFields(token ?? undefined);
+
+        // A GLOBAL field with NO answer row at all — the field key itself is absent from
+        // userAnswers — genuinely was never presented, unlike one that HAS a row (even a
+        // null one, meaning it was asked and deliberately left blank since it's optional).
+        // Surfaced here too, even though pendingFieldIds (benefit-condition-driven) may not
+        // reference it yet: skipping the base quiz shouldn't silently keep a global field
+        // out of "Answer More" forever just because no benefit's tree happens to check it.
+        // REPEATER_GROUP fields are excluded — they have no scalar row to check "answered"
+        // against at all (their data lives in FctUserFieldAnswerGroup, not this array), and
+        // this form's submit path already can't handle them (see handleSubmit's filter).
+        const answeredFieldIds = new Set(answers.filter((a) => a.repeaterGroupId === null).map((a) => a.fieldId));
+        allFields
+          .filter((f) => f.classification === "GLOBAL" && f.parentFieldId === null && f.fieldInputType.value !== "REPEATER_GROUP" && !answeredFieldIds.has(f.id))
+          .forEach((f) => fieldIds.add(f.id));
+
         setPendingFields(allFields.filter((f) => fieldIds.has(f.id)).sort((a, b) => a.sortOrder - b.sortOrder));
         setPendingBenefitNames(pending.map((r) => r.benefit.name));
         setDraft((prev) => ({ ...answersMap, ...prev }));
@@ -49,10 +65,10 @@ export function AnswerMorePage() {
     e.preventDefault();
     if (!pendingFields) return;
     setSubmitting(true);
-    // Same "only what was actually rendered, eGov fields excluded, repeaters excluded"
-    // rule as FormPage — see its comment for why.
+    // Same "only what was actually rendered, locked eGov fields excluded, repeaters
+    // excluded" rule as FormPage — see its comment for why.
     const answerable = renderableFields(pendingFields, draft).filter(
-      (f) => (isGuest || !f.eGovField) && f.fieldInputType.value !== "REPEATER_GROUP",
+      (f) => !isEgovFieldLocked(f, role, user) && f.fieldInputType.value !== "REPEATER_GROUP",
     );
     await submit(answerable.map((f) => ({ fieldId: f.id, value: draft[f.id] ?? null })));
     setSubmitting(false);
