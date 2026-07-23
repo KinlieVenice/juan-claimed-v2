@@ -85,11 +85,11 @@ function OptionRow({
   const nameTranslate = useAutoTranslate({ sourceValue: option.englishName, onTargetChange: (v) => onChange({ tagalogName: v }), token, enabled: !disabled });
 
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3">
+    <div className="grid grid-cols-1 gap-2 rounded-lg border border-border p-3 sm:grid-cols-2">
       <TextField label="English Name" value={option.englishName} onChange={(v) => onChange({ englishName: v })} required />
       <TextField label="Tagalog Name" value={option.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
       {!disabled && (
-        <div className="col-span-2 flex justify-end">
+        <div className="sm:col-span-2 flex justify-end">
           <Button type="button" size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={onRemove}>
             <Trash2 />
           </Button>

@@ -48,7 +48,7 @@ function TextConfigFields({ value, onChange }: { value: Record<string, unknown>;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextField
           label="Min length"
           type="number"
@@ -110,7 +110,7 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
   if (inputTypeValue === "NUMBER") {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField label="Min" type="number" value={value.min === undefined ? "" : String(value.min)} onChange={(v) => set({ min: v === "" ? undefined : Number(v) })} />
           <TextField label="Max" type="number" value={value.max === undefined ? "" : String(value.max)} onChange={(v) => set({ max: v === "" ? undefined : Number(v) })} />
         </div>
@@ -124,7 +124,7 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
   if (inputTypeValue === "MONEY") {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField label="Min" type="number" value={value.min === undefined ? "" : String(value.min)} onChange={(v) => set({ min: v === "" ? undefined : Number(v) })} />
           <TextField label="Max" type="number" value={value.max === undefined ? "" : String(value.max)} onChange={(v) => set({ max: v === "" ? undefined : Number(v) })} />
         </div>
@@ -136,7 +136,7 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
   if (inputTypeValue === "DATE") {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField label="Earliest date" type="date" value={(value.minDate as string) ?? ""} onChange={(v) => set({ minDate: v || undefined })} />
           <TextField label="Latest date" type="date" value={(value.maxDate as string) ?? ""} onChange={(v) => set({ maxDate: v || undefined })} />
         </div>
@@ -151,7 +151,7 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
     const allowedUnits = (value.allowedUnits as string[] | undefined) ?? DEFAULT_DURATION_UNITS.map((u) => u.value);
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField label="Min value" type="number" value={value.minValue === undefined ? "" : String(value.minValue)} onChange={(v) => set({ minValue: v === "" ? undefined : Number(v) })} />
           <TextField label="Max value" type="number" value={value.maxValue === undefined ? "" : String(value.maxValue)} onChange={(v) => set({ maxValue: v === "" ? undefined : Number(v) })} />
         </div>
@@ -162,7 +162,7 @@ export function FieldConfigForm({ inputTypeValue, value, onChange }: FieldConfig
 
   if (inputTypeValue === "MULTI_SELECT") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextField
           label="Min selections"
           type="number"

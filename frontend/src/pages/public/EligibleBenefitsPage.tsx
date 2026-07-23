@@ -18,9 +18,19 @@ import { ClayCard } from "@/components/apply/ClayCard";
 export function EligibleBenefitsPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { isGuest, answersMap, repeaterRowsMap } = useAnswers();
+  const { isGuest, answers, loading: answersLoading, answersMap, repeaterRowsMap } = useAnswers();
   const [results, setResults] = React.useState<EligibilityResult[] | null>(null);
   const [fields, setFields] = React.useState<DimField[] | null>(null);
+
+  // A truly fresh account/guest — zero answer rows at all, not even one field ever
+  // presented — has no realistic eligibility to show yet. Skip straight to the initial
+  // quiz instead of flashing an empty "No eligible benefits" page they'd just have to click
+  // "Go to the quiz" on anyway. `replace` so the back button doesn't bounce them back here.
+  React.useEffect(() => {
+    if (!answersLoading && answers.length === 0) {
+      navigate("/form", { replace: true });
+    }
+  }, [answersLoading, answers.length, navigate]);
 
   React.useEffect(() => {
     // Guests have no stored userId — their in-browser answers travel inline instead (see

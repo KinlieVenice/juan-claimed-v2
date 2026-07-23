@@ -199,11 +199,11 @@ function SubfieldRow({
 
       {expanded && (
         <div className="space-y-4 border-t border-border p-3">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField label="English Name" value={subfield.englishName} onChange={(v) => onChange({ englishName: v })} required />
             <TextField label="Tagalog Name" value={subfield.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextareaField label="English Description" value={subfield.englishDescription} onChange={(v) => onChange({ englishDescription: v })} />
             <TextareaField
               label="Tagalog Description"

@@ -725,7 +725,7 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
                     />
                   ) : (
                     <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <TextField label="English Name" value={newHierarchyEnglishName} onChange={setNewHierarchyEnglishName} required />
                         <TextField
                           label="Tagalog Name"
@@ -735,7 +735,7 @@ export function FieldFormModal({ open, onOpenChange, field, viewOnly, classifica
                           badge={newHierarchyNameTranslate.badge}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <TextareaField label="English Description" value={newHierarchyEnglishDescription} onChange={setNewHierarchyEnglishDescription} />
                         <TextareaField
                           label="Tagalog Description"

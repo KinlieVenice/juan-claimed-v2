@@ -265,7 +265,7 @@ function Hero({ primaryHref, primaryLabel, onPrimary }: { primaryHref: string; p
             you're eligible for, from national programs down to your barangay. Sign in with eGov anytime to save
             your answers.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3 md:mt-9 md:gap-4">
+          <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center md:mt-9 md:gap-4">
             <button
               type="button"
               onClick={onPrimary}

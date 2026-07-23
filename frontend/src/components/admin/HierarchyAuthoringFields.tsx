@@ -86,7 +86,7 @@ function HierarchyLevelRow({
   return (
     <div className="flex items-start gap-2 rounded-lg border border-border p-3">
       <span className="mt-3 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">{index + 1}</span>
-      <div className="grid flex-1 grid-cols-2 gap-2">
+      <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
         <TextField label="English Name" value={level.englishName} onChange={(v) => onChange({ englishName: v })} required />
         <TextField label="Tagalog Name" value={level.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
       </div>

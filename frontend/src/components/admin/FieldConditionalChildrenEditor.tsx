@@ -325,11 +325,11 @@ function ChildRow({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField label="English Name" value={child.englishName} onChange={(v) => onChange({ englishName: v })} required />
             <TextField label="Tagalog Name" value={child.tagalogName} onChange={nameTranslate.handleTargetChange} required badge={nameTranslate.badge} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextareaField label="English Description" value={child.englishDescription} onChange={(v) => onChange({ englishDescription: v })} />
             <TextareaField
               label="Tagalog Description"

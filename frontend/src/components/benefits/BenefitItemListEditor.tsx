@@ -143,7 +143,7 @@ function ItemRow({
 
       {expanded && (
         <div className="space-y-4 border-t border-border p-3">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField label="English Name" value={item.englishName} onChange={(v) => onChange({ englishName: v })} required disabled={disabled} />
             <TextField
               label="Tagalog Name"
@@ -154,7 +154,7 @@ function ItemRow({
               disabled={disabled}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextareaField label="English Description" value={item.englishDescription} onChange={(v) => onChange({ englishDescription: v })} required disabled={disabled} />
             <TextareaField
               label="Tagalog Description"
