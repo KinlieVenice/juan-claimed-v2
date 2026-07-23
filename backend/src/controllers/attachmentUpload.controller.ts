@@ -18,7 +18,9 @@ export const createAttachmentUploadToken = async (req: Request, res: Response) =
     const jsonResponse = await handleUpload({
       body,
       request: req,
-      token: process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN!,
+      // BLOB_READ_WRITE_TOKEN is Vercel's own standard name — auto-injected into the
+      // project's env vars the moment a Blob store is linked to it, not something to rename.
+      token: process.env.BLOB_READ_WRITE_TOKEN!,
       onBeforeGenerateToken: async (_pathname, _clientPayload, _multipart) => ({
         allowedContentTypes: [...ALLOWED_ATTACHMENT_FILE_TYPES],
         maximumSizeInBytes: 25 * 1024 * 1024, // 25MB
