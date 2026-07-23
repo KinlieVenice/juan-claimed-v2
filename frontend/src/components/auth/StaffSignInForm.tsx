@@ -6,10 +6,15 @@ import { TextField } from "@/components/ui/text-field";
 
 // Username+password sign-in for AGENT/SUPERADMIN staff accounts (POST /api/auth/login) —
 // USER accounts never have a password, they always come through Google or eGov.
+//
+// VITE_PRESET_USERNAME/VITE_PRESET_PASSWORD are a demo-only convenience — pre-fills this
+// form with a real seeded staff account (e.g. superadmin_main / password123) so a live demo
+// doesn't need to type/remember credentials. Both unset (the normal case outside a demo) ->
+// the fields just start empty, unchanged from before.
 export function StaffSignInForm() {
   const { loginWithPassword } = useAuth();
-  const [username, setUsername] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  const [username, setUsername] = React.useState(() => import.meta.env.VITE_PRESET_USERNAME ?? "");
+  const [password, setPassword] = React.useState(() => import.meta.env.VITE_PRESET_PASSWORD ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
